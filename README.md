@@ -1,4 +1,4 @@
-# Clearcut_detection  
+# Deforestation Detection  
 
 ## Project structure info
  * `input` - scripts for data download and preparation
@@ -23,6 +23,10 @@ password and sentinel_id parameters.
 
 5) Merge bands with `python prepare_tif.py --data_folder … --save_path …` for a single image folder, or `./PREPARE_IMAGES.sh "data_folder" "save_path"` for the catalogue of images.
 
+6) Download global land cover map: `wget https://s3-eu-west-1.amazonaws.com/vito.landcover.global/2015/E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_products_EPSG-4326.zip`
+    * Unzip archive
+    * Run script `python prepare_landcover.py --save_path ... --data_path ...`
+
 ### Data preparation
 1) Create folder in clearcut_research where is stored data:
    * Source subfolder stores raw data that has to be preprocess
@@ -34,10 +38,6 @@ password and sentinel_id parameters.
 3) If you have already merged bands to a single TIFF, you can just move it to input folder. But you have to create the folder (it can be empty) for this image in the source folder.
 
 4) The polygons folder contains markup that you apply to all images in input folder.
-
-5) Download global land cover map: `wget https://s3-eu-west-1.amazonaws.com/vito.landcover.global/2015/E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_products_EPSG-4326.zip`
-    * Unzip archive
-    * Run script `python prepare_landcover.py --save_path ... --data_path ...`
 
 #### Example of data folder structure:
 ```
