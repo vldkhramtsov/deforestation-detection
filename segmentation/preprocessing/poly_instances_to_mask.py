@@ -19,8 +19,9 @@ from shapely.geometry import MultiPolygon
 def filter_poly(
     poly_pieces_path, markup_path,
     pieces_info_path, original_image_path,
-    image_pieces_path, mask_pieces_path, land_pieces_path,
-    pxl_size_threshold, pass_chance, land_type=40
+    image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path,
+    pxl_size_threshold, pass_chance, 
+    land_type=40
 ):
     original_image = rs.open(original_image_path)
     geojson_markup = gp.read_file(markup_path)
@@ -46,9 +47,6 @@ def filter_poly(
             )
             continue
 
-        if random() < pass_chance:
-            continue
-
         intersection = gp.overlay(geojson_markup, poly_piece, how='intersection')
         adjacency_list = compose_adjacency_list(intersection['geometry'])
         components = get_components(intersection['geometry'], adjacency_list)
@@ -57,28 +55,48 @@ def filter_poly(
         for component in components:
             multi_polys.append(MultiPolygon(poly for poly in component))
 
-        #png_file = os.path.join(mask_pieces_path, filename + '.png')
         mask_piece_file = os.path.join(mask_pieces_path, filename + '.png')
         
         land_piece_file = os.path.join(land_pieces_path, filename + '.png')
         land_piece = imageio.imread(land_piece_file)
         land_piece = (land_piece==land_type).astype(np.uint8)
         
+        if clouds_pieces_path:
+            cloud_piece_file = os.path.join(clouds_pieces_path, filename + '.png')
+            cloud_piece = imageio.imread(cloud_piece_file ) / 255
+        else:
+            cloud_piece = np.zeros((10,10))
+
+        #Leave all empty and clear images with land_type=40
         if( (len(multi_polys) == 0 or \
             (imageio.imread(mask_piece_file )).sum() < 255 * pxl_size_threshold) \
-        and land_piece.sum()<0.98*land_piece.size):
+        and land_piece.sum()<0.98*land_piece.size \
+        and cloud_piece.sum()>0.8*cloud_piece.size):
             
             remove_piece(
                 filename, poly_pieces_path,
-                image_pieces_path, mask_pieces_path, land_pieces_path
+                image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path
+            )
+        
+        #Remove with probability (1-pass_chance) empty images with land_type=40
+        if random() < pass_chance:
+            continue
+        
+        if(land_piece.sum()>0.98*land_piece.size):
+            
+            remove_piece(
+                filename, poly_pieces_path,
+                image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path
             )
 
 
-def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path, land_pieces_path):
+def remove_piece(filename, poly_pieces_path, 
+                 image_pieces_path, mask_pieces_path, land_pieces_path, cloud_pieces_path):
     geojson_file = os.path.join(poly_pieces_path, filename + '.geojson')
     tiff_file = os.path.join(image_pieces_path, filename + '.tiff')
     mask_file = os.path.join(mask_pieces_path, filename + '.png')
     land_file = os.path.join(land_pieces_path, filename + '.png')
+    cloud_file = os.path.join(cloud_pieces_path, filename + '.png')
 
     if os.path.exists(geojson_file):
         os.remove(geojson_file)
@@ -88,7 +106,8 @@ def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path
         os.remove(mask_file)
     if os.path.exists(land_file):
         os.remove(land_file)
-
+    if os.path.exists(cloud_file):
+        os.remove(cloud_file)
 
 
 def compose_adjacency_list(polys):

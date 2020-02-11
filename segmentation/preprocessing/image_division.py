@@ -21,11 +21,10 @@ def window_from_extent(corners, aff):
     col_stop,  row_stop  = ~aff * (xmax, ymin)
     return ((int(row_start), int(row_stop)), (int(col_start), int(col_stop)))
 
-def crop_landcovermap(src, corners, land_type=40):
+def crop_landcovermap(src, corners):
     aff = src.transform
     window = window_from_extent(corners, aff)
     arr = src.read(1, window=window)
-    #return (arr==land_type).astype(np.uint8)
     return arr
 
 def divide_into_pieces(image_path, save_path, land_src, width, height):
@@ -36,13 +35,14 @@ def divide_into_pieces(image_path, save_path, land_src, width, height):
     os.makedirs(f'{save_path}/images', exist_ok=True)
     os.makedirs(f'{save_path}/geojson_polygons', exist_ok=True)
     os.makedirs(f'{save_path}/landcover', exist_ok=True)
+    
     with rasterio.open(image_path) as src, open(f'{save_path}/image_pieces.csv', 'w') as csvFile:
         writer = csv.writer(csvFile)
         writer.writerow([
             'original_image', 'piece_image', 'piece_geojson',
             'start_x', 'start_y', 'width', 'height'
         ])
-
+        
         for j in tqdm(range(0, src.height // height)):
             for i in range(0, src.width // width):
                 window=Window(i * width, j * height, width, height)
@@ -71,7 +71,7 @@ def divide_into_pieces(image_path, save_path, land_src, width, height):
 
                     landcover = crop_landcovermap(land_src, corners)
                     imageio.imwrite(land_name, landcover)
-
+                    
                     gs = GeoSeries([poly])
                     gs.crs = src.crs
                     piece_geojson_name = f'{filename}_{j}_{i}.geojson'

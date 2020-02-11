@@ -67,10 +67,12 @@ def poly2mask(
     return filename
 
 
-def split_mask(mask_path, save_path, image_pieces_path):
-    if not os.path.exists(save_path):
-        os.mkdir(save_path)
-        print("Output directory created.")
+def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pieces_path):
+    if not os.path.exists(save_mask_path):
+        os.mkdir(save_mask_path)
+    
+    if cloud_path and not os.path.exists(save_cloud_path):
+        os.mkdir(save_cloud_path)
 
     pieces_info = pd.read_csv(
         image_pieces_path, dtype={
@@ -79,6 +81,8 @@ def split_mask(mask_path, save_path, image_pieces_path):
         }
     )
     mask = imageio.imread(mask_path)
+    if cloud_path:
+        clouds = imageio.imread(cloud_path)
     for i in range(pieces_info.shape[0]):
         piece = pieces_info.loc[i]
         piece_mask = mask[
@@ -86,10 +90,21 @@ def split_mask(mask_path, save_path, image_pieces_path):
              piece['start_x']: piece['start_x'] + piece['width']
         ]
         filename = '{}/{}.png'.format(
-            save_path,
+            save_mask_path,
             re.split(r'[/.]', piece['piece_image'])[-2]
         )
         imageio.imwrite(filename, piece_mask)
+        if cloud_path:
+            piece_cloud = clouds[
+                 piece['start_y']: piece['start_y'] + piece['height'],
+                 piece['start_x']: piece['start_x'] + piece['width']
+            ]
+            filename = '{}/{}.png'.format(
+                save_cloud_path,
+                re.split(r'[/.]', piece['piece_image'])[-2]
+            )
+            imageio.imwrite(filename, piece_cloud)
+        
 
 
 def parse_args():

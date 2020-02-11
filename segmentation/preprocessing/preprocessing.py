@@ -77,7 +77,7 @@ def merge_bands(tiff_filepath, save_path, channels):
 
 
 def preprocess(
-    tiff_path, save_path, land_path, 
+    tiff_path, save_path, land_path, clouds_path,
     width, height,
     polys_path, channels, type_filter,
     filter_by_date, pxl_size_threshold,
@@ -107,12 +107,19 @@ def preprocess(
 
         mask_pieces_path = os.path.join(data_path, 'masks')
         land_pieces_path = os.path.join(data_path, 'landcover')
+        if clouds_path:
+            clouds_path = os.path.join(clouds_path, basename(tiff_file[:-4])+'_clouds.png')
+            clouds_pieces_path = os.path.join(data_path, 'clouds')
+        else:
+            clouds_pieces_path = None
+        
         pieces_info = os.path.join(data_path, 'image_pieces.csv')
         mask_path = poly2mask(
             polys_path, tiff_file, data_path,
             type_filter, filter_by_date
         )
-        split_mask(mask_path, mask_pieces_path, pieces_info)
+        
+        split_mask(mask_path, mask_pieces_path, clouds_path, clouds_pieces_path, pieces_info)
 
         geojson_polygons = os.path.join(data_path, "geojson_polygons")
         instance_masks_path = os.path.join(data_path, "instance_masks")
@@ -122,6 +129,7 @@ def preprocess(
             image_pieces_path=os.path.join(data_path, 'images'),
             mask_pieces_path=mask_pieces_path,
             land_pieces_path=land_pieces_path,
+            clouds_pieces_path=clouds_pieces_path,
             pxl_size_threshold=pxl_size_threshold,
             pass_chance=pass_chance
         )
@@ -149,6 +157,11 @@ def parse_args():
         '--land_path', '-ld', dest='land_path',
         default='../data/auxiliary/land.tif',
         help='Path to land cover map file'
+    )
+    parser.add_argument(
+        '--clouds_path', '-cp', dest='clouds_path',
+        default=None,
+        help='Path to clouds map file'
     )
     parser.add_argument(
         '--width', '-w',  dest='width', default=224,
@@ -183,7 +196,7 @@ def parse_args():
     )
     parser.add_argument(
         '--pass_chance', '-pc', dest='pass_chance', type=float,
-        default=0, help='Chance of passing blank tile'
+        default=0.3, help='Chance of passing blank tile'
     )
     return parser.parse_args()
 
@@ -191,7 +204,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     preprocess(
-        args.tiff_path, args.save_path, args.land_path,
+        args.tiff_path, args.save_path, args.land_path, args.clouds_path,
         args.width, args.height,
         args.polys_path, args.channels,
         args.type_filter, args.filter_by_date,
