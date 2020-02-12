@@ -68,26 +68,26 @@ def filter_poly(
             cloud_piece = np.zeros((10,10))
 
         #Leave all empty and clear images with land_type=40
-        if( (len(multi_polys) == 0 or \
+        if( ((len(multi_polys) == 0 or \
             (imageio.imread(mask_piece_file )).sum() < 255 * pxl_size_threshold) \
-        and land_piece.sum()<0.98*land_piece.size \
-        and cloud_piece.sum()>0.8*cloud_piece.size):
+        and land_piece.sum()<0.98*land_piece.size) \
+        or cloud_piece.sum()>0.3*cloud_piece.size):
             
             remove_piece(
                 filename, poly_pieces_path,
                 image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path
             )
         
-        #Remove with probability (1-pass_chance) empty images with land_type=40
-        if random() < pass_chance:
-            continue
-        
-        if(land_piece.sum()>0.98*land_piece.size):
-            
-            remove_piece(
-                filename, poly_pieces_path,
-                image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path
-            )
+#        #Remove with probability (1-pass_chance) empty images with land_type=40
+#        if random() < pass_chance:
+#            continue
+#        
+#        if(land_piece.sum()>0.98*land_piece.size):
+#            
+#            remove_piece(
+#                filename, poly_pieces_path,
+#                image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path
+#            )
 
 
 def remove_piece(filename, poly_pieces_path, 

@@ -107,11 +107,14 @@ def preprocess(
 
         mask_pieces_path = os.path.join(data_path, 'masks')
         land_pieces_path = os.path.join(data_path, 'landcover')
-        if clouds_path:
-            clouds_path = os.path.join(clouds_path, basename(tiff_file[:-4])+'_clouds.png')
-            clouds_pieces_path = os.path.join(data_path, 'clouds')
-        else:
+        
+        clouds_path = os.path.join(clouds_path, basename(tiff_file[:-4])+'_clouds.png')
+        if not os.path.exists(clouds_path):
             clouds_pieces_path = None
+        else:
+            clouds_pieces_path = os.path.join(data_path, 'clouds')
+            if not os.path.exists(clouds_pieces_path):
+                os.mkdir(clouds_pieces_path)
         
         pieces_info = os.path.join(data_path, 'image_pieces.csv')
         mask_path = poly2mask(

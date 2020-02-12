@@ -40,7 +40,8 @@ def poly2mask(
         polys = markup[markup['img_date'] <= dt].loc[:, 'geometry']
     else:
         polys = markup.loc[:, 'geometry']
-
+    
+    print('Number of polygons:',len(polys))
     with rs.open(image_path) as image:
         polys = polys.to_crs({'init': image.crs})
 
@@ -70,9 +71,6 @@ def poly2mask(
 def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pieces_path):
     if not os.path.exists(save_mask_path):
         os.mkdir(save_mask_path)
-    
-    if cloud_path and not os.path.exists(save_cloud_path):
-        os.mkdir(save_cloud_path)
 
     pieces_info = pd.read_csv(
         image_pieces_path, dtype={
@@ -89,21 +87,24 @@ def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pie
              piece['start_y']: piece['start_y'] + piece['height'],
              piece['start_x']: piece['start_x'] + piece['width']
         ]
-        filename = '{}/{}.png'.format(
+        filename_mask = '{}/{}.png'.format(
             save_mask_path,
             re.split(r'[/.]', piece['piece_image'])[-2]
         )
-        imageio.imwrite(filename, piece_mask)
-        if cloud_path:
+        if save_cloud_path:
             piece_cloud = clouds[
                  piece['start_y']: piece['start_y'] + piece['height'],
                  piece['start_x']: piece['start_x'] + piece['width']
             ]
-            filename = '{}/{}.png'.format(
+            filename_cloud = '{}/{}.png'.format(
                 save_cloud_path,
                 re.split(r'[/.]', piece['piece_image'])[-2]
             )
-            imageio.imwrite(filename, piece_cloud)
+            imageio.imwrite(filename_cloud, piece_cloud)
+#            imageio.imwrite(filename_mask, np.multiply(piece_mask/255, piece_cloud/255)*255)
+#        else:
+#            imageio.imwrite(filename_mask, piece_mask)
+        imageio.imwrite(filename_mask, piece_mask)
         
 
 
