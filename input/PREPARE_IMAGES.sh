@@ -7,4 +7,5 @@ for dir in $datafolder/*/;
 do
 	echo "$dir"
 	python prepare_tif.py --data_folder $dir --save_path $savepath
+	python prepare_clouds.py --data_folder $dir --save_path $savepath --prob 0.7
 done
