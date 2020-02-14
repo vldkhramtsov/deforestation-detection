@@ -25,7 +25,7 @@ password and sentinel_id parameters.
 
 6) Download global land cover map: `wget https://s3-eu-west-1.amazonaws.com/vito.landcover.global/2015/E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_products_EPSG-4326.zip`
     * Unzip archive
-    * Run script `python prepare_landcover.py --save_path ... --data_path ...`
+    * Run script `python prepare_landcover.py --save_path ... --data_path .../E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_discrete-classification_EPSG-4326.tif`
 
 ### Data preparation
 1) Create folder in clearcut_research where is stored data:
