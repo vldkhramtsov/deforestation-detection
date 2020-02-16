@@ -65,13 +65,13 @@ def filter_poly(
             cloud_piece_file = os.path.join(clouds_pieces_path, filename + '.png')
             cloud_piece = imageio.imread(cloud_piece_file ) / 255
         else:
-            cloud_piece = np.zeros((10,10))
+            cloud_piece = np.ones((10,10))
 
         #Leave all empty and clear images with land_type=40
         if( ((len(multi_polys) == 0 or \
             (imageio.imread(mask_piece_file )).sum() < 255 * pxl_size_threshold) \
         and land_piece.sum()<0.98*land_piece.size) \
-        or cloud_piece.sum()>0.3*cloud_piece.size):
+        or cloud_piece.sum()<0.3*cloud_piece.size):
             
             remove_piece(
                 filename, poly_pieces_path,

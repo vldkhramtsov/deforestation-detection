@@ -79,7 +79,7 @@ def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pie
         }
     )
     mask = imageio.imread(mask_path)
-    if cloud_path:
+    if save_cloud_path:
         clouds = imageio.imread(cloud_path)
     for i in range(pieces_info.shape[0]):
         piece = pieces_info.loc[i]
@@ -101,11 +101,9 @@ def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pie
                 re.split(r'[/.]', piece['piece_image'])[-2]
             )
             imageio.imwrite(filename_cloud, piece_cloud)
-#            imageio.imwrite(filename_mask, np.multiply(piece_mask/255, piece_cloud/255)*255)
-#        else:
-#            imageio.imwrite(filename_mask, piece_mask)
-        imageio.imwrite(filename_mask, piece_mask)
-        
+            imageio.imwrite(filename_mask, np.multiply(piece_mask/255, piece_cloud/255)*255)
+        else:
+            imageio.imwrite(filename_mask, piece_mask)
 
 
 def parse_args():
