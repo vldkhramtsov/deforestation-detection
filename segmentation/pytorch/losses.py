@@ -4,7 +4,7 @@ from torch.nn import CrossEntropyLoss
 from torch.nn import Module
 from torch.nn import functional as F
 
-from clearcut_research.pytorch.metrics import multi_class_dice
+from metrics import multi_class_dice
 
 
 class BCE_Dice_Loss(Module):

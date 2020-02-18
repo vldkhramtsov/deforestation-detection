@@ -37,7 +37,7 @@ def parse_args():
     )
     parser.add_argument(
         '--instances_folder', '-inf', dest='instances_folder',
-        default='instance_masks',
+        default='masks', #'instance_masks',
         help='Name of folder where instances are storing'
     )
     parser.add_argument(
@@ -178,7 +178,7 @@ def evaluate(
 
         img_size = image.shape
         instances = []
-
+        '''
         image_instances_path = os.path.join(
             datasets_path, image_info['name'],
             instances_folder, name
@@ -195,7 +195,7 @@ def evaluate(
         iou_matrix = compute_iou_matrix(markers, instances)
         metric = compute_metric_at_thresholds(iou_matrix)
         metrics.append(metric)
-
+	'''
         img_raw = Image.fromarray(np.uint8(image), 'RGB').tobytes()
         msk_raw = Image.fromarray(np.uint8(mask), 'RGB').tobytes()
         pred_raw = Image.fromarray(np.uint8(prediction), 'RGB').tobytes()
@@ -210,7 +210,7 @@ def evaluate(
             "img_raw": tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw])),
             "mask_raw": tf.train.Feature(bytes_list=tf.train.BytesList(value=[msk_raw])),
             "pred_raw": tf.train.Feature(bytes_list=tf.train.BytesList(value=[pred_raw])),
-            "metric": tf.train.Feature(float_list=tf.train.FloatList(value=[metric])),
+            #"metric": tf.train.Feature(float_list=tf.train.FloatList(value=[metric])),
             "img_name": tf.train.Feature(
                 bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(name)])),
             "msk_name": tf.train.Feature(
