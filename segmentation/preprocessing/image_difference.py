@@ -23,7 +23,7 @@ from rasterio.plot import reshape_as_image as rsimg
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Script for dividing images into smaller pieces.'
+        description='Script for creating difference between images in the near-by time series of one tile.'
     )
     parser.add_argument(
         '--data_path', '-dp', dest='data_path',
