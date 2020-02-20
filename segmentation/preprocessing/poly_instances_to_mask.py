@@ -3,7 +3,6 @@ import fiona
 import shutil
 import imageio
 import argparse
-import numpy as np
 import pandas as pd
 import rasterio as rs
 import geopandas as gp
@@ -19,9 +18,8 @@ from shapely.geometry import MultiPolygon
 def filter_poly(
     poly_pieces_path, markup_path,
     pieces_info_path, original_image_path,
-    image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path,
-    pxl_size_threshold, pass_chance, 
-    land_type=40
+    image_pieces_path, mask_pieces_path,
+    pxl_size_threshold, pass_chance
 ):
     original_image = rs.open(original_image_path)
     geojson_markup = gp.read_file(markup_path)
@@ -33,17 +31,24 @@ def filter_poly(
         poly_piece_name = pieces_info['piece_geojson'][i]
         start_x = pieces_info["start_x"][i]
         start_y = pieces_info["start_y"][i]
+        is_mask = pieces_info["is_mask"][i]
 
         x, y = original_image.transform * (start_x + 1, start_y + 1)
         filename, _ = os.path.splitext(poly_piece_name)
-
+        if is_mask==0:
+            remove_piece(
+                filename, poly_pieces_path,
+                image_pieces_path, mask_pieces_path
+            )
+            
+        '''
         try:
             poly_piece = gp.read_file(os.path.join(poly_pieces_path, poly_piece_name))
         except fiona.errors.DriverError:
             print('Polygon is not found.')
             remove_piece(
                 filename, poly_pieces_path,
-                image_pieces_path, mask_pieces_path, land_pieces_path
+                image_pieces_path, mask_pieces_path
             )
             continue
 
@@ -55,59 +60,27 @@ def filter_poly(
         for component in components:
             multi_polys.append(MultiPolygon(poly for poly in component))
 
-        mask_piece_file = os.path.join(mask_pieces_path, filename + '.png')
+        png_file = os.path.join(mask_pieces_path, filename + '.png')
         
-        land_piece_file = os.path.join(land_pieces_path, filename + '.png')
-        land_piece = imageio.imread(land_piece_file)
-        land_piece = (land_piece==land_type).astype(np.uint8)
-        
-        if clouds_pieces_path:
-            cloud_piece_file = os.path.join(clouds_pieces_path, filename + '.png')
-            cloud_piece = imageio.imread(cloud_piece_file ) / 255
-        else:
-            cloud_piece = np.ones((10,10))
-
-        #Leave all empty and clear images with land_type=40
-        if( ((len(multi_polys) == 0 or \
-            (imageio.imread(mask_piece_file )).sum() < 255 * pxl_size_threshold) \
-        and land_piece.sum()<0.98*land_piece.size) \
-        or cloud_piece.sum()<0.3*cloud_piece.size):
-            
+        if (len(multi_polys) == 0 or (imageio.imread(png_file)).sum() < 255 * pxl_size_threshold):
             remove_piece(
                 filename, poly_pieces_path,
-                image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path
+                image_pieces_path, mask_pieces_path
             )
-        
-#        #Remove with probability (1-pass_chance) empty images with land_type=40
-#        if random() < pass_chance:
-#            continue
-#        
-#        if(land_piece.sum()>0.98*land_piece.size):
-#            
-#            remove_piece(
-#                filename, poly_pieces_path,
-#                image_pieces_path, mask_pieces_path, land_pieces_path, clouds_pieces_path
-#            )
+        '''
 
 
-def remove_piece(filename, poly_pieces_path, 
-                 image_pieces_path, mask_pieces_path, land_pieces_path, cloud_pieces_path):
+def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path):
     geojson_file = os.path.join(poly_pieces_path, filename + '.geojson')
     tiff_file = os.path.join(image_pieces_path, filename + '.tiff')
-    mask_file = os.path.join(mask_pieces_path, filename + '.png')
-    land_file = os.path.join(land_pieces_path, filename + '.png')
-    cloud_file = os.path.join(cloud_pieces_path, filename + '.png')
+    png_file = os.path.join(mask_pieces_path, filename + '.png')
 
     if os.path.exists(geojson_file):
         os.remove(geojson_file)
     if os.path.exists(tiff_file):
         os.remove(tiff_file)
-    if os.path.exists(mask_file):
-        os.remove(mask_file)
-    if os.path.exists(land_file):
-        os.remove(land_file)
-    if os.path.exists(cloud_file):
-        os.remove(cloud_file)
+    if os.path.exists(png_file):
+        os.remove(png_file)
 
 
 def compose_adjacency_list(polys):

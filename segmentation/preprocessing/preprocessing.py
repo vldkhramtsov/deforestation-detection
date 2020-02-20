@@ -1,5 +1,4 @@
 import os
-import sys
 import argparse
 import rasterio
 import numpy as np
@@ -77,22 +76,14 @@ def merge_bands(tiff_filepath, save_path, channels):
 
 
 def preprocess(
-    tiff_path, save_path, land_path, clouds_path,
-    width, height,
+    tiff_path, save_path, width, height,
     polys_path, channels, type_filter,
-    filter_by_date, pxl_size_threshold,
+    pxl_size_threshold,
     no_merge, pass_chance
 ):
-    print(f'filter_by_date:{filter_by_date}')
     if not os.path.exists(save_path):
         os.makedirs(save_path, exist_ok=True)
         print("Save directory created.")
-    
-    try:
-        land_src=rasterio.open(land_path, 'r')
-    except IOError:
-        print("Land cover map file not found: {}".format(land_path))
-        sys.exit()
 
     for tiff_name in get_folders(tiff_path):
         tiff_filepath = os.path.join(tiff_path, tiff_name)
@@ -101,28 +92,26 @@ def preprocess(
             tiff_file = join(save_path, f'{tiff_name}.tif')
         else:
             tiff_file = merge_bands(tiff_filepath, save_path, channels)
-
+        
         data_path = os.path.join(save_path, basename(tiff_file[:-4]))
-        divide_into_pieces(tiff_file, data_path, land_src, width, height)
 
-        mask_pieces_path = os.path.join(data_path, 'masks')
-        land_pieces_path = os.path.join(data_path, 'landcover')
-        
-        clouds_path = os.path.join(clouds_path, basename(tiff_file[:-4])+'_clouds.png')
-        if not os.path.exists(clouds_path):
-            clouds_pieces_path = None
-        else:
-            clouds_pieces_path = os.path.join(data_path, 'clouds')
-            if not os.path.exists(clouds_pieces_path):
-                os.mkdir(clouds_pieces_path)
-        
-        pieces_info = os.path.join(data_path, 'image_pieces.csv')
+        # Full mask
         mask_path = poly2mask(
             polys_path, tiff_file, data_path,
-            type_filter, filter_by_date
+            type_filter, filter_by_date=False
         )
-        
-        split_mask(mask_path, mask_pieces_path, clouds_path, clouds_pieces_path, pieces_info)
+        # Time-series mask
+        mask_path = poly2mask(
+            polys_path, tiff_file, data_path,
+            type_filter, filter_by_date=True
+        )
+
+        divide_into_pieces(tiff_file, data_path, width, height)
+
+        pieces_path = os.path.join(data_path, 'masks')
+        pieces_info = os.path.join(data_path, 'image_pieces.csv')
+
+        split_mask(mask_path, pieces_path, pieces_info)
 
         geojson_polygons = os.path.join(data_path, "geojson_polygons")
         instance_masks_path = os.path.join(data_path, "instance_masks")
@@ -130,13 +119,10 @@ def preprocess(
             poly_pieces_path=geojson_polygons, markup_path=polys_path,
             pieces_info_path=pieces_info, original_image_path=tiff_file,
             image_pieces_path=os.path.join(data_path, 'images'),
-            mask_pieces_path=mask_pieces_path,
-            land_pieces_path=land_pieces_path,
-            clouds_pieces_path=clouds_pieces_path,
+            mask_pieces_path=pieces_path, 
             pxl_size_threshold=pxl_size_threshold,
             pass_chance=pass_chance
         )
-    land_src.close()
 
 
 def parse_args():
@@ -157,16 +143,6 @@ def parse_args():
         help='Path to directory where data will be stored'
     )
     parser.add_argument(
-        '--land_path', '-ld', dest='land_path',
-        default='../data/auxiliary/land.tif',
-        help='Path to land cover map file'
-    )
-    parser.add_argument(
-        '--clouds_path', '-cp', dest='clouds_path',
-        default=None,
-        help='Path to clouds map file'
-    )
-    parser.add_argument(
         '--width', '-w',  dest='width', default=224,
         type=int, help='Width of a piece'
     )
@@ -184,11 +160,6 @@ def parse_args():
         help='Type of clearcut: "open" or "closed")'
     )
     parser.add_argument(
-        '--filter_by_date', '-fd', dest='filter_by_date',
-        action='store_true', default=False,
-        help='Filter by date is enabled'
-    )
-    parser.add_argument(
         '--pxl_size_threshold', '-mp', dest='pxl_size_threshold',
         default=20, help='Minimum pixel size of mask area'
     )
@@ -199,7 +170,7 @@ def parse_args():
     )
     parser.add_argument(
         '--pass_chance', '-pc', dest='pass_chance', type=float,
-        default=0.3, help='Chance of passing blank tile'
+        default=0, help='Chance of passing blank tile'
     )
     return parser.parse_args()
 
@@ -207,10 +178,10 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     preprocess(
-        args.tiff_path, args.save_path, args.land_path, args.clouds_path,
+        args.tiff_path, args.save_path,
         args.width, args.height,
         args.polys_path, args.channels,
-        args.type_filter, args.filter_by_date,
+        args.type_filter,
         args.pxl_size_threshold,
         args.no_merge, args.pass_chance
     )
