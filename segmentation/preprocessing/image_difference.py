@@ -19,11 +19,12 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from random import random
+from skimage import img_as_ubyte
 from rasterio.plot import reshape_as_image as rsimg
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Script for creating difference between images in the near-by time series of one tile.'
+        description='Script for dividing images into smaller pieces.'
     )
     parser.add_argument(
         '--data_path', '-dp', dest='data_path',
@@ -65,6 +66,14 @@ def readtiff(filename):
     src = rs.open(filename)
     return rsimg(src.read()), src.meta
 
+def diff(img1,img2):
+    #                         [-1,1]               ---------------> [0,2]->[0,1]
+#    d = ((img1.astype(np.float32) - img2.astype(np.float32)) / 255 + 1 ) / 2
+#    return img_as_ubyte(d)
+    d = img1.astype(np.float32) - img2.astype(np.float32)
+    return img_as_ubyte(  (d-np.min(d))/(np.max(d)-np.min(d)) )
+
+
 def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer):
     xs = [piece.split('_')[4:5][0] for piece in os.listdir(os.path.join(data_path,tile1,img_path))]
     ys = [piece.split('_')[5:6][0].split('.')[0] for piece in os.listdir(os.path.join(data_path,tile1,img_path))]
@@ -80,7 +89,7 @@ def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer):
         msk2=imageio.imread(
                         os.path.join(data_path,tile2,msk_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
         
-        diff_img = np.clip((img1-img2), 0, 255)
+        diff_img = diff(img1,img2)
         diff_msk = np.clip((msk1-msk2), 0, 255)
         
         with rs.open(os.path.join(diff_path, img_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.tiff'), 'w', **meta) as dst:
