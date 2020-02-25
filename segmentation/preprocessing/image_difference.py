@@ -7,6 +7,7 @@ Created on Wed Feb 19 23:30:23 2020
 """
 
 import os
+import cv2
 import csv
 import imageio
 import datetime
@@ -44,6 +45,14 @@ def parse_args():
         default='masks', help='Path to pieces of mask'
     )
     parser.add_argument(
+        '--width', '-w',  dest='width', default=224,
+        type=int, help='Width of a piece'
+    )
+    parser.add_argument(
+        '--height', '-hgt', dest='height', default=224,
+        type=int, help='Height of a piece'
+    )
+    parser.add_argument(
         '--train_size', '-tr', dest='train_size',
         default=0.6, type=float, help='Represent proportion of the dataset to include in the train split'
     )
@@ -66,15 +75,19 @@ def readtiff(filename):
     src = rs.open(filename)
     return rsimg(src.read()), src.meta
 
-def diff(img1,img2):
+
+def diff(img1,img2,width,height):
     #                         [-1,1]               ---------------> [0,2]->[0,1]
-#    d = ((img1.astype(np.float32) - img2.astype(np.float32)) / 255 + 1 ) / 2
-#    return img_as_ubyte(d)
-    d = img1.astype(np.float32) - img2.astype(np.float32)
-    return img_as_ubyte(  (d-np.min(d))/(np.max(d)-np.min(d)) )
+    dim = (width,height)
+    I1 = np.clip(cv2.resize(img1.astype(np.float32) , dim, interpolation = cv2.INTER_CUBIC), 0, 255)
+    I2 = np.clip(cv2.resize(img2.astype(np.float32) , dim, interpolation = cv2.INTER_CUBIC), 0, 255)
+    #d = ((img1.astype(np.float32) - img2.astype(np.float32)) / 255 + 1 ) / 2
+    d = ((I1 - I2) / 255 + 1 ) / 2
+    return img_as_ubyte(d)
+#    d = img1.astype(np.float32) - img2.astype(np.float32)
+#    return img_as_ubyte(  (d-np.min(d))/(np.max(d)-np.min(d)) )
 
-
-def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer):
+def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer, width,height):
     xs = [piece.split('_')[4:5][0] for piece in os.listdir(os.path.join(data_path,tile1,img_path))]
     ys = [piece.split('_')[5:6][0].split('.')[0] for piece in os.listdir(os.path.join(data_path,tile1,img_path))]
     assert len(xs)==len(ys)
@@ -89,9 +102,13 @@ def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer):
         msk2=imageio.imread(
                         os.path.join(data_path,tile2,msk_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
         
-        diff_img = diff(img1,img2)
+        diff_img = diff(img1,img2, width,height)
         diff_msk = np.clip((msk1-msk2), 0, 255)
+        diff_msk = cv2.resize(diff_msk, (height,width), interpolation = cv2.INTER_NEAREST)
         
+        meta['width'] = width
+        meta['height'] = height
+
         with rs.open(os.path.join(diff_path, img_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.tiff'), 'w', **meta) as dst:
             for ix in range(diff_img.shape[2]):
                 dst.write(diff_img[:, :, ix], ix + 1)
@@ -102,8 +119,7 @@ def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer):
             diff_path.split('/')[-1], diff_path.split('/')[-1], xs[i]+'_'+ys[i], int(diff_msk.sum()/255)
         ])
 
-    
-def get_diff_and_split(data_path, save_path, img_path, msk_path, train_size, test_size, valid_size):
+def get_diff_and_split(data_path, save_path, img_path, msk_path, width,height, train_size, test_size, valid_size):
     tiles=getdates(data_path)
     df = pd.DataFrame(tiles, columns=['tileID','img_date'])
     df = df.sort_values(['img_date'],ascending=False)
@@ -124,7 +140,7 @@ def get_diff_and_split(data_path, save_path, img_path, msk_path, train_size, tes
             if not os.path.exists(os.path.join(diff_path,msk_path)):
                 os.mkdir(os.path.join(diff_path,msk_path))
             
-            imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,data_path, img_path, msk_path,writer)
+            imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,data_path, img_path, msk_path,writer,width,height)
             
     df = pd.read_csv(infofile)
     xy = df['position'].unique()
@@ -156,4 +172,4 @@ if __name__ == '__main__':
     args = parse_args()
     assert args.train_size + args.test_size + args.valid_size==1.0
     get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path, 
-                       args.train_size, args.test_size, args.valid_size)
+    	args.width,args.height,args.train_size, args.test_size, args.valid_size)
