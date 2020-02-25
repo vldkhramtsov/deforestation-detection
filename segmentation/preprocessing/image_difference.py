@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from random import random
 from skimage import img_as_ubyte
+from imgaug import augmenters as iaa
 from rasterio.plot import reshape_as_image as rsimg
 
 def parse_args():
@@ -33,7 +34,7 @@ def parse_args():
     )
     parser.add_argument(
         '--save_path', '-sp', dest='save_path',
-        default='../data/data_diff/input', 
+        default='../data/diff', 
         help='Path to directory where pieces will be stored'
     )
     parser.add_argument(
@@ -75,7 +76,6 @@ def readtiff(filename):
     src = rs.open(filename)
     return rsimg(src.read()), src.meta
 
-
 def diff(img1,img2,width,height):
     #                         [-1,1]               ---------------> [0,2]->[0,1]
     dim = (width,height)
@@ -86,6 +86,7 @@ def diff(img1,img2,width,height):
     return img_as_ubyte(d)
 #    d = img1.astype(np.float32) - img2.astype(np.float32)
 #    return img_as_ubyte(  (d-np.min(d))/(np.max(d)-np.min(d)) )
+
 
 def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer, width,height):
     xs = [piece.split('_')[4:5][0] for piece in os.listdir(os.path.join(data_path,tile1,img_path))]
@@ -168,8 +169,62 @@ def get_diff_and_split(data_path, save_path, img_path, msk_path, width,height, t
     print('Test  split: %d'%len(test))
     print('Valid split: %d'%len(valid))
 
+def augment_masked_images(data_path, save_path, img_path, msk_path, train_df_path):
+    seq = iaa.Sequential([
+        iaa.Affine(rotate=(-25, 25)),
+        iaa.Crop(percent=(0, 0.2)),
+        iaa.Fliplr(0.5),
+        iaa.Flipud(0.5),
+        iaa.ElasticTransformation(alpha=3, sigma=1)
+    ], random_order=True)
+    
+    train_df = pd.read_csv(train_df_path)
+    aug_train_df_path = train_df_path.split(".csv")[-2]+'_aug.csv'
+    os.system(f'cat {train_df_path} > {aug_train_df_path}')
+    total_imgs = train_df.shape[0]
+    train_df = train_df[train_df['mask_pxl']>0]
+    masked_imgs = train_df.shape[0]
+    number_of_augmentation = int(total_imgs/masked_imgs)+1
+    print('number_of_augmentation:',number_of_augmentation)
+    aug_path = os.path.join(save_path, 'augmented')
+    if not os.path.exists(aug_path):
+        os.mkdir(aug_path)
+    if not os.path.exists(os.path.join(aug_path,img_path)):
+        os.mkdir(os.path.join(aug_path,img_path))
+    if not os.path.exists(os.path.join(aug_path,msk_path)):
+        os.mkdir(os.path.join(aug_path,msk_path))
+        
+    for _, row in tqdm(train_df.iterrows()):
+        image, meta = readtiff(os.path.join(save_path, row['dataset_folder'],img_path,row['name']+'_'+row['position']+'.tiff'))
+        segmap = imageio.imread(os.path.join(save_path, row['dataset_folder'],msk_path,row['name']+'_'+row['position']+'.png'))
+        
+        images = np.zeros((number_of_augmentation, image.shape[0], image.shape[1], image.shape[2]))
+        segmaps = np.zeros((number_of_augmentation, image.shape[0], image.shape[1], 1))
+        for n in range(number_of_augmentation):
+            images[n] = image
+            segmaps[n] = segmap.reshape((image.shape[0], image.shape[1], 1))
+        
+        images = images.astype(np.uint8)
+        segmaps = segmaps.astype(np.uint8)
+        images_aug, segmaps_aug = seq(images=images, segmentation_maps=segmaps)
+        
+        for n in range(number_of_augmentation):
+            img = images_aug[n].reshape((image.shape[0],image.shape[1],image.shape[2]))
+            msk  =segmaps_aug[n].reshape((image.shape[0],image.shape[1]))
+            with rs.open(os.path.join(aug_path,img_path,row['name']+'_'+str(n)+'_'+row['position']+'.tiff'), 'w', **meta) as dst:
+                for ix in range(img.shape[2]):
+                    dst.write(img[:, :, ix], ix + 1)
+            dst.close() 
+            imageio.imwrite(os.path.join(aug_path,msk_path,row['name']+'_'+str(n)+'_'+row['position']+'.png'), msk)
+            row_info = pd.DataFrame(['augmented',  row['name']+'_'+str(n), row['position'], int(msk.sum()/255)]).T
+            row_info.to_csv(f'{aug_train_df_path}', header=None, index=None, mode='a')
+            
+
 if __name__ == '__main__':
     args = parse_args()
     assert args.train_size + args.test_size + args.valid_size==1.0
-    get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path, 
-    	args.width,args.height,args.train_size, args.test_size, args.valid_size)
+#    get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path,  
+#                       args.width,args.height,
+#                       args.train_size, args.test_size, args.valid_size)
+    augment_masked_images(args.data_path, args.save_path, args.img_path, args.msk_path, 
+                          os.path.join(args.save_path,'train_df.csv'))
