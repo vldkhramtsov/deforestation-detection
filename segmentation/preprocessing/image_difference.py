@@ -34,7 +34,7 @@ def parse_args():
     )
     parser.add_argument(
         '--save_path', '-sp', dest='save_path',
-        default='../data/diff', 
+        default='../data/diff2', 
         help='Path to directory where pieces will be stored'
     )
     parser.add_argument(
@@ -52,6 +52,10 @@ def parse_args():
     parser.add_argument(
         '--height', '-hgt', dest='height', default=224,
         type=int, help='Height of a piece'
+    )
+    parser.add_argument(
+        '--neighbours', '-nbr', dest='neighbours', default=2,
+        type=int, help='Number of pairs before the present day (dt=5 days, e.g. neighbours=3 means max dt = 15 days)'
     )
     parser.add_argument(
         '--train_size', '-tr', dest='train_size',
@@ -77,15 +81,11 @@ def readtiff(filename):
     return rsimg(src.read()), src.meta
 
 def diff(img1,img2,width,height):
-    #                         [-1,1]               ---------------> [0,2]->[0,1]
     dim = (width,height)
     I1 = np.clip(cv2.resize(img1.astype(np.float32) , dim, interpolation = cv2.INTER_CUBIC), 0, 255)
     I2 = np.clip(cv2.resize(img2.astype(np.float32) , dim, interpolation = cv2.INTER_CUBIC), 0, 255)
-    #d = ((img1.astype(np.float32) - img2.astype(np.float32)) / 255 + 1 ) / 2
-    d = ((I1 - I2) / 255 + 1 ) / 2
+    d = ( (I1 - I2) / (I1 + I2) )
     return img_as_ubyte(d)
-#    d = img1.astype(np.float32) - img2.astype(np.float32)
-#    return img_as_ubyte(  (d-np.min(d))/(np.max(d)-np.min(d)) )
 
 
 def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer, width,height):
@@ -120,7 +120,7 @@ def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer, widt
             diff_path.split('/')[-1], diff_path.split('/')[-1], xs[i]+'_'+ys[i], int(diff_msk.sum()/255)
         ])
 
-def get_diff_and_split(data_path, save_path, img_path, msk_path, width,height, train_size, test_size, valid_size):
+def get_diff_and_split(data_path, save_path, img_path, msk_path, width, height, neighbours, train_size, test_size, valid_size):
     tiles=getdates(data_path)
     df = pd.DataFrame(tiles, columns=['tileID','img_date'])
     df = df.sort_values(['img_date'],ascending=False)
@@ -131,17 +131,19 @@ def get_diff_and_split(data_path, save_path, img_path, msk_path, width,height, t
         writer.writerow([
             'dataset_folder', 'name', 'position', 'mask_pxl'
         ])
-        for i in tqdm(range(len(df)-1)):
-            j=i+1
-            diff_path = os.path.join(save_path, str(df['img_date'].iloc[i].date())+'_'+str(df['img_date'].iloc[j].date()))
-            if not os.path.exists(diff_path):
-                os.mkdir(diff_path)
-            if not os.path.exists(os.path.join(diff_path,img_path)):
-                os.mkdir(os.path.join(diff_path,img_path))
-            if not os.path.exists(os.path.join(diff_path,msk_path)):
-                os.mkdir(os.path.join(diff_path,msk_path))
-            
-            imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,data_path, img_path, msk_path,writer,width,height)
+        for i in range(len(df)-1):
+            for j in range(i+1, i+1+neighbours):
+                if(j<len(df)):
+                    print(str(df['img_date'].iloc[i].date())+' - '+str(df['img_date'].iloc[j].date()))
+                    diff_path = os.path.join(save_path, str(df['img_date'].iloc[i].date())+'_'+str(df['img_date'].iloc[j].date()))
+                    if not os.path.exists(diff_path):
+                        os.mkdir(diff_path)
+                    if not os.path.exists(os.path.join(diff_path,img_path)):
+                        os.mkdir(os.path.join(diff_path,img_path))
+                    if not os.path.exists(os.path.join(diff_path,msk_path)):
+                        os.mkdir(os.path.join(diff_path,msk_path))
+                    
+                    imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,data_path, img_path, msk_path,writer,width,height)
             
     df = pd.read_csv(infofile)
     xy = df['position'].unique()
@@ -172,7 +174,7 @@ def get_diff_and_split(data_path, save_path, img_path, msk_path, width,height, t
 def augment_masked_images(data_path, save_path, img_path, msk_path, train_df_path):
     seq = iaa.Sequential([
         iaa.Affine(rotate=(-25, 25)),
-        iaa.Crop(percent=(0, 0.2)),
+        iaa.Crop(percent=(0, 0.1)),
         iaa.Fliplr(0.5),
         iaa.Flipud(0.5),
         iaa.ElasticTransformation(alpha=3, sigma=1)
@@ -223,8 +225,11 @@ def augment_masked_images(data_path, save_path, img_path, msk_path, train_df_pat
 if __name__ == '__main__':
     args = parse_args()
     assert args.train_size + args.test_size + args.valid_size==1.0
-#    get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path,  
-#                       args.width,args.height,
-#                       args.train_size, args.test_size, args.valid_size)
+    assert args.neighbours > 0 and args.neighbours < 4
+    if not os.path.exists(args.save_path):
+        os.mkdir(args.save_path)
+    get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path,  
+                       args.width,args.height, args.neighbours,
+                       args.train_size, args.test_size, args.valid_size)
     augment_masked_images(args.data_path, args.save_path, args.img_path, args.msk_path, 
                           os.path.join(args.save_path,'train_df.csv'))
