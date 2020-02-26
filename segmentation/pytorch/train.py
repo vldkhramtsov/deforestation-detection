@@ -12,10 +12,13 @@ from torch import nn, cuda
 from torch.backends import cudnn
 
 from dataset import Dataset
-from losses import BCE_Dice_Loss
+from losses import BCE_Dice_Loss, FocalLoss, LovaszHingeLoss
 from models.utils import get_model
 from utils import count_channels
+from radam import RAdam
 
+import warnings
+warnings.simplefilter("ignore")
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -30,9 +33,10 @@ def parse_args():
     arg('--train_df', '-td', default='../data/train_df.csv')
     arg('--val_df', '-vd', default='../data/val_df.csv')
     arg('--dataset_path', '-dp', default='../data/input', help='Path to the data')
-    arg('--model_weights_path', '-mwp', default='../weights/resnet50-19c8e357.pth')
+    arg('--model_weights_path', '-mwp', default=None)
     arg('--name', default='vld_1')
     arg('--optimizer', default='Adam')
+    arg('--loss', default='bce')
     arg('--image_size', '-is', type=int, default=224)
     arg('--network', '-n', default='unet50')
     arg(
@@ -73,14 +77,25 @@ def train(args):
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     elif(args.optimizer=='SGD'):
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
+    elif(args.optimizer=='RAdam'):
+        optimizer = RAdam(model.parameters(), lr=args.lr)
     else:
         print('Unknown argument. Return to the default optimizer (Adam)')
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    criterion = BCE_Dice_Loss(bce_weight=0.2)
+    if(args.loss=='bce'):
+        criterion = BCE_Dice_Loss(bce_weight=0.2)
+    elif(args.loss=='focal'):
+        criterion = FocalLoss()
+    elif(args.loss=='lovasz'):
+        criterion = LovaszHingeLoss()
+    else:
+        print('Unknown argument. Return to the default loss (BCE)')
+        criterion = BCE_Dice_Loss(bce_weight=0.2)
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[10, 20, 40], gamma=0.3
+        optimizer, milestones=[10, 20, 40], gamma=0.2
     )
 
     save_path = os.path.join(
@@ -90,7 +105,9 @@ def train(args):
 
     # model runner
     runner = SupervisedRunner()
-
+    if args.model_weights_path:
+        checkpoint = torch.load(args.model_weights_path, map_location='cpu')
+        model.load_state_dict(checkpoint['model_state_dict'])
     # model training
     runner.train(
         model=model,
