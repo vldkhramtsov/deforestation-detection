@@ -71,7 +71,7 @@ def merge_bands(tiff_filepath, save_path, channels):
 
 
 def preprocess(
-    tiff_path, save_path, clouds_path,
+    tiff_path, save_path, cloud_path,
     width, height,
     polys_path, channels, type_filter,
     pxl_size_threshold,
@@ -103,7 +103,6 @@ def preprocess(
         )
 
         divide_into_pieces(tiff_file, data_path, width, height)
-
         clouds_path = os.path.join(cloud_path, basename(tiff_file[:-4])+'_clouds.png')
         if not os.path.exists(clouds_path):
             clouds_pieces_path = None
@@ -112,7 +111,7 @@ def preprocess(
             if not os.path.exists(clouds_pieces_path):
                 os.mkdir(clouds_pieces_path)
 
-        pieces_path = os.path.join(data_path, 'masks')
+        mask_pieces_path = os.path.join(data_path, 'masks')
         pieces_info = os.path.join(data_path, 'image_pieces.csv')
 
         #split_mask(mask_path, pieces_path, pieces_info)
@@ -124,7 +123,7 @@ def preprocess(
             poly_pieces_path=geojson_polygons, markup_path=polys_path,
             pieces_info_path=pieces_info, original_image_path=tiff_file,
             image_pieces_path=os.path.join(data_path, 'images'),
-            mask_pieces_path=pieces_path, 
+            mask_pieces_path=mask_pieces_path, 
             clouds_pieces_path=clouds_pieces_path,
             pxl_size_threshold=pxl_size_threshold,
             pass_chance=pass_chance
@@ -149,7 +148,7 @@ def parse_args():
         help='Path to directory where data will be stored'
     )
     parser.add_argument(
-        '--clouds_path', '-cp', dest='clouds_path',
+        '--cloud_path', '-cp', dest='cloud_path',
         default=None,
         help='Path to clouds map file'
     )
@@ -189,7 +188,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     preprocess(
-        args.tiff_path, args.save_path, args.clouds_path,
+        args.tiff_path, args.save_path, args.cloud_path,
         args.width, args.height,
         args.polys_path, args.channels,
         args.type_filter,

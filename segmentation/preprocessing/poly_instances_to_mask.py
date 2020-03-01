@@ -70,7 +70,7 @@ def filter_poly(
         '''
 
 
-def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path, clouds_pieces_path):
+def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path, cloud_pieces_path):
     geojson_file = os.path.join(poly_pieces_path, filename + '.geojson')
     tiff_file = os.path.join(image_pieces_path, filename + '.tiff')
     png_file = os.path.join(mask_pieces_path, filename + '.png')

@@ -38,8 +38,8 @@ def parse_args():
         default='masks', help='Path to pieces of mask'
     )
     parser.add_argument(
-        '--cld_path', '-mp', dest='cld_path',
-        default='masks', help='Path to pieces of cloud map'
+        '--cld_path', '-cp', dest='cld_path',
+        default='clouds', help='Path to pieces of cloud map'
     )
     parser.add_argument(
         '--width', '-w',  dest='width', default=224,
@@ -101,11 +101,11 @@ def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, cloud_path, 
                         os.path.join(data_path,tile2,msk_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
         
         cld1=imageio.imread(
-                        os.path.join(data_path,tile1,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png'))
+                        os.path.join(data_path,tile1,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png'))/255
         cld2=imageio.imread(
-                        os.path.join(data_path,tile2,cloud_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
+                        os.path.join(data_path,tile2,cloud_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))/255
         
-        if (cld1/255+cld2/255).sum()<0.3*cld1.size():
+        if cld1.sum()/cld1.size>0.9 and cld2.sum()/cld2.size>0.9:
 	        diff_img = diff(img1,img2, width,height)
 	        diff_msk = np.clip((msk1-msk2), 0, 255)
 	        diff_msk = cv2.resize(diff_msk, (height,width), interpolation = cv2.INTER_NEAREST)
@@ -193,8 +193,8 @@ def augment_masked_images(data_path, save_path, img_path, msk_path, train_df_pat
     total_imgs = train_df.shape[0]
     train_df = train_df[train_df['mask_pxl']>0]
     masked_imgs = train_df.shape[0]
-    number_of_augmentation = int(total_imgs/masked_imgs)+1
-    print('number_of_augmentation:',number_of_augmentation)
+    number_of_augmentation = 2#int(total_imgs/masked_imgs)+1
+    #print('number_of_augmentation:',number_of_augmentation)
     aug_path = os.path.join(save_path, 'augmented')
     if not os.path.exists(aug_path):
         os.mkdir(aug_path)
