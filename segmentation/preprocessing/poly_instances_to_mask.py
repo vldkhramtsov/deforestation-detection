@@ -18,7 +18,7 @@ from shapely.geometry import MultiPolygon
 def filter_poly(
     poly_pieces_path, markup_path,
     pieces_info_path, original_image_path,
-    image_pieces_path, mask_pieces_path,
+    image_pieces_path, mask_pieces_path, clouds_pieces_path,
     pxl_size_threshold, pass_chance
 ):
     original_image = rs.open(original_image_path)
@@ -38,7 +38,7 @@ def filter_poly(
         if is_mask==0:
             remove_piece(
                 filename, poly_pieces_path,
-                image_pieces_path, mask_pieces_path
+                image_pieces_path, mask_pieces_path, clouds_pieces_path
             )
             
         '''
@@ -70,10 +70,11 @@ def filter_poly(
         '''
 
 
-def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path):
+def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path, clouds_pieces_path):
     geojson_file = os.path.join(poly_pieces_path, filename + '.geojson')
     tiff_file = os.path.join(image_pieces_path, filename + '.tiff')
     png_file = os.path.join(mask_pieces_path, filename + '.png')
+    cloud_file = os.path.join(cloud_pieces_path, filename + '.png')
 
     if os.path.exists(geojson_file):
         os.remove(geojson_file)
@@ -81,6 +82,8 @@ def remove_piece(filename, poly_pieces_path, image_pieces_path, mask_pieces_path
         os.remove(tiff_file)
     if os.path.exists(png_file):
         os.remove(png_file)
+    if os.path.exists(cloud_file):
+        os.remove(cloud_file)
 
 
 def compose_adjacency_list(polys):

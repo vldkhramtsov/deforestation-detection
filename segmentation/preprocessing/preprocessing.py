@@ -4,16 +4,11 @@ import rasterio
 import numpy as np
 
 from os.path import join, basename
-#from clearcut_research.preprocessing.image_division import divide_into_pieces
 from image_division import divide_into_pieces
-#from clearcut_research.preprocessing.binary_mask_converter import poly2mask, split_mask
 from binary_mask_converter import poly2mask, split_mask
-#from clearcut_research.preprocessing.poly_instances_to_mask import filter_poly
 from poly_instances_to_mask import filter_poly
 
-#from clearcut_research.pytorch.utils import get_folders
 from utils import get_folders
-
 
 def scale_img(img_file, min_value=0, max_value=255, output_type='Byte'):
     with rasterio.open(img_file) as src:
@@ -76,7 +71,8 @@ def merge_bands(tiff_filepath, save_path, channels):
 
 
 def preprocess(
-    tiff_path, save_path, width, height,
+    tiff_path, save_path, clouds_path,
+    width, height,
     polys_path, channels, type_filter,
     pxl_size_threshold,
     no_merge, pass_chance
@@ -96,7 +92,7 @@ def preprocess(
         data_path = os.path.join(save_path, basename(tiff_file[:-4]))
 
         # Full mask
-        mask_path = poly2mask(
+        _ = poly2mask(
             polys_path, tiff_file, data_path,
             type_filter, filter_by_date=False
         )
@@ -108,10 +104,19 @@ def preprocess(
 
         divide_into_pieces(tiff_file, data_path, width, height)
 
+        clouds_path = os.path.join(cloud_path, basename(tiff_file[:-4])+'_clouds.png')
+        if not os.path.exists(clouds_path):
+            clouds_pieces_path = None
+        else:
+            clouds_pieces_path = os.path.join(data_path, 'clouds')
+            if not os.path.exists(clouds_pieces_path):
+                os.mkdir(clouds_pieces_path)
+
         pieces_path = os.path.join(data_path, 'masks')
         pieces_info = os.path.join(data_path, 'image_pieces.csv')
 
-        split_mask(mask_path, pieces_path, pieces_info)
+        #split_mask(mask_path, pieces_path, pieces_info)
+        split_mask(mask_path, mask_pieces_path, clouds_path, clouds_pieces_path, pieces_info)
 
         geojson_polygons = os.path.join(data_path, "geojson_polygons")
         instance_masks_path = os.path.join(data_path, "instance_masks")
@@ -120,6 +125,7 @@ def preprocess(
             pieces_info_path=pieces_info, original_image_path=tiff_file,
             image_pieces_path=os.path.join(data_path, 'images'),
             mask_pieces_path=pieces_path, 
+            clouds_pieces_path=clouds_pieces_path,
             pxl_size_threshold=pxl_size_threshold,
             pass_chance=pass_chance
         )
@@ -141,6 +147,11 @@ def parse_args():
         '--save_path', '-sp', dest='save_path',
         default='../data/input',
         help='Path to directory where data will be stored'
+    )
+    parser.add_argument(
+        '--clouds_path', '-cp', dest='clouds_path',
+        default=None,
+        help='Path to clouds map file'
     )
     parser.add_argument(
         '--width', '-w',  dest='width', default=224,
@@ -178,7 +189,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     preprocess(
-        args.tiff_path, args.save_path,
+        args.tiff_path, args.save_path, args.clouds_path,
         args.width, args.height,
         args.polys_path, args.channels,
         args.type_filter,

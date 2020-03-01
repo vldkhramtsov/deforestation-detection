@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Feb 19 23:30:23 2020
-
-@author: vld-kh
-"""
-
 import os
 import cv2
 import csv
@@ -44,6 +36,10 @@ def parse_args():
     parser.add_argument(
         '--msk_path', '-mp', dest='msk_path',
         default='masks', help='Path to pieces of mask'
+    )
+    parser.add_argument(
+        '--cld_path', '-mp', dest='cld_path',
+        default='masks', help='Path to pieces of cloud map'
     )
     parser.add_argument(
         '--width', '-w',  dest='width', default=224,
@@ -85,10 +81,11 @@ def diff(img1,img2,width,height):
     I1 = np.clip(cv2.resize(img1.astype(np.float32) , dim, interpolation = cv2.INTER_CUBIC), 0, 255)
     I2 = np.clip(cv2.resize(img2.astype(np.float32) , dim, interpolation = cv2.INTER_CUBIC), 0, 255)
     d = ( (I1 - I2) / (I1 + I2) )
-    return img_as_ubyte(d)
+    #return img_as_ubyte(d)
+    return ((d+1)*127).astype(np.uint8)
 
 
-def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer, width,height):
+def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, cloud_path, writer, width,height):
     xs = [piece.split('_')[4:5][0] for piece in os.listdir(os.path.join(data_path,tile1,img_path))]
     ys = [piece.split('_')[5:6][0].split('.')[0] for piece in os.listdir(os.path.join(data_path,tile1,img_path))]
     assert len(xs)==len(ys)
@@ -103,24 +100,32 @@ def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, writer, widt
         msk2=imageio.imread(
                         os.path.join(data_path,tile2,msk_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
         
-        diff_img = diff(img1,img2, width,height)
-        diff_msk = np.clip((msk1-msk2), 0, 255)
-        diff_msk = cv2.resize(diff_msk, (height,width), interpolation = cv2.INTER_NEAREST)
+        cld1=imageio.imread(
+                        os.path.join(data_path,tile1,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png'))
+        cld2=imageio.imread(
+                        os.path.join(data_path,tile2,cloud_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
         
-        meta['width'] = width
-        meta['height'] = height
+        if (cld1/255+cld2/255).sum()<0.3*cld1.size():
+	        diff_img = diff(img1,img2, width,height)
+	        diff_msk = np.clip((msk1-msk2), 0, 255)
+	        diff_msk = cv2.resize(diff_msk, (height,width), interpolation = cv2.INTER_NEAREST)
+	        
+	        meta['width'] = width
+	        meta['height'] = height
 
-        with rs.open(os.path.join(diff_path, img_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.tiff'), 'w', **meta) as dst:
-            for ix in range(diff_img.shape[2]):
-                dst.write(diff_img[:, :, ix], ix + 1)
-        dst.close()
+	        with rs.open(os.path.join(diff_path, img_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.tiff'), 'w', **meta) as dst:
+	            for ix in range(diff_img.shape[2]):
+	                dst.write(diff_img[:, :, ix], ix + 1)
+	        dst.close()
 
-        imageio.imwrite(os.path.join(diff_path, msk_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.png'), diff_msk)
-        writer.writerow([
-            diff_path.split('/')[-1], diff_path.split('/')[-1], xs[i]+'_'+ys[i], int(diff_msk.sum()/255)
-        ])
+	        imageio.imwrite(os.path.join(diff_path, msk_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.png'), diff_msk)
+	        writer.writerow([
+	            diff_path.split('/')[-1], diff_path.split('/')[-1], xs[i]+'_'+ys[i], int(diff_msk.sum()/255)
+	        ])
+        else:
+	        pass
 
-def get_diff_and_split(data_path, save_path, img_path, msk_path, width, height, neighbours, train_size, test_size, valid_size):
+def get_diff_and_split(data_path, save_path, img_path, msk_path, cloud_path, width, height, neighbours, train_size, test_size, valid_size):
     tiles=getdates(data_path)
     df = pd.DataFrame(tiles, columns=['tileID','img_date'])
     df = df.sort_values(['img_date'],ascending=False)
@@ -143,7 +148,9 @@ def get_diff_and_split(data_path, save_path, img_path, msk_path, width, height, 
                     if not os.path.exists(os.path.join(diff_path,msk_path)):
                         os.mkdir(os.path.join(diff_path,msk_path))
                     
-                    imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,data_path, img_path, msk_path,writer,width,height)
+                    imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,
+                    	data_path, img_path, msk_path,cloud_path,
+                    	writer,width,height)
             
     df = pd.read_csv(infofile)
     xy = df['position'].unique()
@@ -228,7 +235,7 @@ if __name__ == '__main__':
     assert args.neighbours > 0 and args.neighbours < 4
     if not os.path.exists(args.save_path):
         os.mkdir(args.save_path)
-    get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path,  
+    get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path, args.cld_path,
                        args.width,args.height, args.neighbours,
                        args.train_size, args.test_size, args.valid_size)
     augment_masked_images(args.data_path, args.save_path, args.img_path, args.msk_path, 
