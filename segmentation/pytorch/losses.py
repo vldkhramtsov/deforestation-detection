@@ -7,6 +7,31 @@ from torch.autograd import Variable
 
 from metrics import multi_class_dice
 
+ALPHA = 0.9
+BETA = 1-ALPHA #0.1
+
+class TverskyLoss(Module):
+    def __init__(self, weight=None, size_average=True):
+        super(TverskyLoss, self).__init__()
+
+    def forward(self, inputs, targets, smooth=1, alpha=ALPHA, beta=BETA):
+        
+        #comment out if your model contains a sigmoid or equivalent activation layer
+        inputs = F.sigmoid(inputs)       
+        
+        #flatten label and prediction tensors
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+        
+        #True Positives, False Positives & False Negatives
+        TP = (inputs * targets).sum()    
+        FP = ((1-targets) * inputs).sum()
+        FN = (targets * (1-inputs)).sum()
+       
+        Tversky = (TP + smooth) / (TP + alpha*FP + beta*FN + smooth)  
+        
+        return 1 - Tversky
+
 ALPHA = 0.8
 GAMMA = 2
 class FocalLoss(Module):

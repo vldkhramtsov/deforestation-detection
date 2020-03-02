@@ -144,7 +144,7 @@ def parse_args():
     parser.add_argument('--model_weights_path', '-mwp', required=True, help='Path to file with model weights')
     parser.add_argument('--test_df', '-td', required=True, help='Path to test dataframe')
     parser.add_argument('--save_path', '-sp', required=True, help='Path to save predictions')
-    parser.add_argument('--size', '-s', default=224, type=int, help='Image size')
+    parser.add_argument('--size', '-s', default=112, type=int, help='Image size')
     parser.add_argument('--channels', '-ch', default=['rgb', 'ndvi', 'b8'], nargs='+', help='Channels list')
     parser.add_argument('--tta', '-t', default=False, type=bool, help='Use TTA (True\False)')
     parser.add_argument('--merge_mode', '-mm', default='mean', type=str, help='Merge TTA')

@@ -12,7 +12,7 @@ from torch import nn, cuda
 from torch.backends import cudnn
 
 from dataset import Dataset
-from losses import BCE_Dice_Loss, FocalLoss, LovaszHingeLoss
+from losses import BCE_Dice_Loss, FocalLoss, LovaszHingeLoss, TverskyLoss
 from models.utils import get_model
 from utils import count_channels
 from radam import RAdam
@@ -24,7 +24,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--batch_size', type=int, default=8)
+    arg('--batch_size', type=int, default=32)
     arg('--num_workers', type=int, default=4)
     arg('--epochs', '-e', type=int, default=100)
     arg('--lr', type=float, default=1e-3)
@@ -36,7 +36,7 @@ def parse_args():
     arg('--model_weights_path', '-mwp', default=None)
     arg('--name', default='vld_1')
     arg('--optimizer', default='Adam')
-    arg('--loss', default='bce')
+    arg('--loss', default='bce_dice')
     arg('--image_size', '-is', type=int, default=224)
     arg('--network', '-n', default='unet50')
     arg(
@@ -66,7 +66,6 @@ def train(args):
         count_channels(args.channels), 64, kernel_size=(7, 7),
         stride=(2, 2), padding=(3, 3), bias=False)
     model, device = UtilsFactory.prepare_model(model)
-
     train_df = pd.read_csv(args.train_df).to_dict('records')
     val_df = pd.read_csv(args.val_df).to_dict('records')
 
@@ -83,12 +82,14 @@ def train(args):
         print('Unknown argument. Return to the default optimizer (Adam)')
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    if(args.loss=='bce'):
+    if(args.loss=='bce_dice'):
         criterion = BCE_Dice_Loss(bce_weight=0.2)
     elif(args.loss=='focal'):
         criterion = FocalLoss()
     elif(args.loss=='lovasz'):
         criterion = LovaszHingeLoss()
+    elif(args.loss=='tversky'):
+        criterion = TverskyLoss()
     else:
         print('Unknown argument. Return to the default loss (BCE)')
         criterion = BCE_Dice_Loss(bce_weight=0.2)
