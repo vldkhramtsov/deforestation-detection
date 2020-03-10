@@ -96,7 +96,7 @@ def train(args):
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[10, 20, 40], gamma=0.2
+        optimizer, milestones=[10, 40, 80], gamma=0.1
     )
 
     save_path = os.path.join(

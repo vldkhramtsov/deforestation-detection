@@ -106,7 +106,7 @@ def dice_coef(y_true, y_pred, eps=1e-7):
     y_true_f = y_true.flatten()
     y_pred_f = y_pred.flatten()
     intersection = np.sum(y_true_f * y_pred_f)
-    return (2. * intersection + eps) / (np.sum(y_true_f) + np.sum(y_pred_f))
+    return (2. * intersection + eps) / (np.sum(y_true_f) + np.sum(y_pred_f)+eps)
 
 
 def iou(y_true, y_pred, smooth=1.0):
@@ -237,7 +237,7 @@ def evaluate(
     # print("Metrics value - {0}".format(round(np.average(metrics), 4)))
     print("Average dice score - {0}".format(round(np.average(dices), 4)))
 
-    test_df_results_path = predictions_path + 'test_df_results.csv'
+    test_df_results_path = predictions_path + f'{output_name}_results.csv'
     test_df_results.to_csv(test_df_results_path, index=False)
 
 

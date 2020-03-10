@@ -3,7 +3,7 @@ import collections
 import numpy as np
 import pandas as pd
 from albumentations import (
-    CLAHE, RandomRotate90, Flip, OneOf, Compose, RGBShift, RandomSizedCrop, RandomBrightnessContrast, Transpose, ElasticTransform)
+    CLAHE, RandomRotate90, Flip, OneOf, Compose, RGBShift, RandomSizedCrop, RandomBrightnessContrast, Transpose, ElasticTransform, MaskDropout)
 from albumentations.pytorch.transforms import ToTensor
 from catalyst.dl.utils import UtilsFactory
 from catalyst.data.sampler import BalanceClassSampler
@@ -65,7 +65,8 @@ class Dataset:
                 RandomSizedCrop(
                     min_max_height=(int(self.image_size * 0.7), self.image_size),
                     height=self.image_size, width=self.image_size),
-                RandomBrightnessContrast(brightness_limit=0.15, contrast_limit=0.1),
+                RandomBrightnessContrast(brightness_limit=0.15, contrast_limit=0.2),
+                MaskDropout(p=0.1),
                 ElasticTransform(alpha=10, sigma=5, alpha_affine=5)
             ], p=0.75),
             ToTensor()
@@ -78,7 +79,7 @@ class Dataset:
         return {'features': augmented_images, 'targets': augmented_masks}
 
     def create_loaders(self, train_df, val_df):
-        labels = [(x["mask_pxl"]==0)*1 for x in train_df]
+        labels = [(x["mask_pxl"]<20)*1 for x in train_df]
         sampler = BalanceClassSampler(labels, mode="upsampling")
         train_loader = UtilsFactory.create_loader(
             train_df,
@@ -88,7 +89,7 @@ class Dataset:
             shuffle=sampler is None,
             sampler=sampler)
         
-        labels = [(x["mask_pxl"]>5)*1 for x in val_df]
+        labels = [(x["mask_pxl"]==0)*1 for x in val_df]
         sampler = BalanceClassSampler(labels, mode="upsampling")
         valid_loader = UtilsFactory.create_loader(
             val_df,

@@ -1,38 +1,30 @@
 #! /bin/bash
 
-optimizer=RAdam
-network=fpn50
+data_path=../data/diff5
+image_size=56
 
-name_pretrain=pretrain
-echo "$name_pretrain"
-python train.py --epochs 120 \
- 			    --lr 9e-2 \
- 			    --network $network \
- 			    --optimizer $optimizer \
- 			    --name $name_pretrain \
- 			    --dataset_path ../data/diff/ \
- 			    --train_df ../data/diff/onlymasksplit/train_df.csv \
- 			    --val_df ../data/diff/onlymasksplit/valid_df.csv \
-
-epochs=60
+epochs=200
 lr=1e-3
-loss=bce
-optimizer=RAdam
-network=fpn50
+image_size=56
 
-name="diff_"$network"_"$optimizer"_"$loss"_"$lr
+network=unet18
+loss=bce_dice
+optimizer=RAdam
+
+name="nobag"_$network"_"$optimizer"_"$loss"_"$lr
 echo "$name"
 
 python train.py --epochs $epochs \
+                --image_size $image_size \
  			    --lr $lr \
  			    --network $network \
  			    --optimizer $optimizer \
  			    --loss $loss \
  			    --name $name \
- 			    --dataset_path ../data/diff/ \
- 			    --train_df ../data/diff/train_df_aug.csv \
- 			    --val_df ../data/diff/valid_df.csv \
- 			    --model_weights_path ../logs/$name_pretrain/checkpoints/best.pth
+ 			    --dataset_path $data_path/ \
+ 			    --train_df $data_path/train_df.csv \
+ 			    --val_df $data_path/onlymasksplit/valid_df.csv \
+                #--model_weights_path ../logs/$name_pretrain/checkpoints/best.pth
 
 
-./run_tta_diff.sh $name
+./run_tta_diff.sh $name $network $data_path $image_size
