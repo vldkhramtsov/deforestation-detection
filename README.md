@@ -21,17 +21,16 @@ password and sentinel_id parameters.
 
 4) Unzip the archive
 
-5) Merge bands with `python prepare_tif.py --data_folder … --save_path …` for a single image folder, or `./PREPARE_IMAGES.sh "data_folder" "save_path"` for the catalogue of images.
+5) Merge bands with `python prepare_tif.py --data_folder … --save_path …` for a single image folder, or `./PREPARE_IMAGES.sh "data_folder" "save_path"` for the catalogue of images. 
 
-6) Download global land cover map: `wget https://s3-eu-west-1.amazonaws.com/vito.landcover.global/2015/E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_products_EPSG-4326.zip`
-    * Unzip archive
-    * Run script `python prepare_landcover.py --save_path ... --data_path .../E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_discrete-classification_EPSG-4326.tif`
+6) Run `prepare_clouds.py` (by defaults, this script is executing with `./PREPARE_IMAGES.sh "data_folder" "save_path"` script)
 
 ### Data preparation
 1) Create folder in clearcut_research where is stored data:
    * Source subfolder stores raw data that has to be preprocess
    * Input subfolder stores data that is used in training and evaluation
    * Polygons subfolder stores markup
+   * Subfolder containing cloud maps for each image tile
 
 2) The source folder contains folders for each image that you downloaded. In that folder you have to store TIFF images of channels (in our case RGB, B2 and B8) named as f”{image_folder}\_{channel}.tif”.
 
@@ -42,6 +41,9 @@ password and sentinel_id parameters.
 #### Example of data folder structure:
 ```
 data
+├── auxiliary
+│   ├── image0_clouds.tiff
+│   └── image1_clouds.tiff
 ├── input
 │   ├── image0.tif
 │   └── image1.tif
@@ -60,11 +62,12 @@ data
 5) Run preprocessing on this data. You can specify other params if it necessary (add --no_merge if you have already merged channels with prepare_tif.py script).
 ```
 python preprocessing.py \
- --polys_path ../data/polygons/markup.geojson \
+ --polys_path ../data/polygons \
  --tiff_path ../data/source
  --save_path ../data/input
- --land_path ../data/auxiliary
 ```
+
+6) After preprocessing, run the script for dividing cloud maps into pieces.
 
 #### Example of input folder structure after preprocessing:
 ```
@@ -76,7 +79,7 @@ input
 │   ├── images
 │   ├── instance_masks
 │   ├── masks
-│   └── landcover
+│   └── clouds
 ├── image0.tif
 ├── image1
 │   ├── geojson_polygons
@@ -84,12 +87,13 @@ input
 │   ├── image_pieces.csv
 │   ├── images
 │   ├── instance_masks
-│   └── masks
+│   ├── masks
+│   └── clouds
 └── image1.tif
 ```
-6) Run data division script with specified split_function (default=’geo_split’) to create train/test/val datasets.
+6) Run image difference script with specified to calculate pairwise differences of images/masks between close dates and to create the train/test/val datasets.
 ```
-python generate_data.py --markup_path ../data/polygons/markup.geojson
+python image_difference.py --save_path ... --neighbours 3
 ```
 
 ### Model training
