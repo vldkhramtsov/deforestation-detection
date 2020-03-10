@@ -1,6 +1,7 @@
 import os
 import cv2
 import csv
+import random
 import imageio
 import datetime
 import argparse
@@ -8,12 +9,14 @@ import argparse
 import numpy as np
 import pandas as pd
 import rasterio as rs
+import geopandas as gp
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from random import random
-from skimage import img_as_ubyte
+from skimage import img_as_ubyte, io
 from imgaug import augmenters as iaa
+from scipy.ndimage import gaussian_filter
 from rasterio.plot import reshape_as_image as rsimg
 
 def parse_args():
@@ -26,8 +29,13 @@ def parse_args():
     )
     parser.add_argument(
         '--save_path', '-sp', dest='save_path',
-        default='../data/diff2', 
+        default='../data/diff5', 
         help='Path to directory where pieces will be stored'
+    )
+    parser.add_argument(
+        '--polys_path', '-pp', dest='polys_path',
+        default='../data/polygons', 
+        help='Path to the polygons'
     )
     parser.add_argument(
         '--img_path', '-ip', dest='img_path',
@@ -42,15 +50,15 @@ def parse_args():
         default='clouds', help='Path to pieces of cloud map'
     )
     parser.add_argument(
-        '--width', '-w',  dest='width', default=224,
+        '--width', '-w',  dest='width', default=56,
         type=int, help='Width of a piece'
     )
     parser.add_argument(
-        '--height', '-hgt', dest='height', default=224,
+        '--height', '-hgt', dest='height', default=56,
         type=int, help='Height of a piece'
     )
     parser.add_argument(
-        '--neighbours', '-nbr', dest='neighbours', default=2,
+        '--neighbours', '-nbr', dest='neighbours', default=3,
         type=int, help='Number of pairs before the present day (dt=5 days, e.g. neighbours=3 means max dt = 15 days)'
     )
     parser.add_argument(
@@ -96,41 +104,55 @@ def imgdiff(tile1, tile2, diff_path, data_path, img_path, msk_path, cloud_path, 
                         os.path.join(data_path,tile2,img_path,tile2+'_'+xs[i]+'_'+ys[i]+'.tiff') ) 
         
         msk1=imageio.imread(
-                        os.path.join(data_path,tile1,msk_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png'))
+                            os.path.join(data_path,tile1,msk_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png'))
         msk2=imageio.imread(
-                        os.path.join(data_path,tile2,msk_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
-        
-        cld1=imageio.imread(
-                        os.path.join(data_path,tile1,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png'))/255
-        cld2=imageio.imread(
-                        os.path.join(data_path,tile2,cloud_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))/255
-        
-        if cld1.sum()/cld1.size>0.9 and cld2.sum()/cld2.size>0.9:
-	        diff_img = diff(img1,img2, width,height)
-	        diff_msk = np.clip((msk1-msk2), 0, 255)
-	        diff_msk = cv2.resize(diff_msk, (height,width), interpolation = cv2.INTER_NEAREST)
-	        
-	        meta['width'] = width
-	        meta['height'] = height
+                            os.path.join(data_path,tile2,msk_path,tile2+'_'+xs[i]+'_'+ys[i]+'.png'))
+        #print(os.path.join(data_path,tile1,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png'))
+        #if os.path.exists(os.path.join(data_path,tile1,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png')) and os.path.exists(os.path.join(data_path,tile2,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.png')):
+        cld1=io.imread(
+                      os.path.join(data_path,tile1,cloud_path,tile1+'_'+xs[i]+'_'+ys[i]+'.tiff'))
+        cld2=io.imread(
+                      os.path.join(data_path,tile2,cloud_path,tile2+'_'+xs[i]+'_'+ys[i]+'.tiff'))
+        #else:
+        #    cld1 = np.ones((10,10))
+        #    cld2 = np.ones((10,10))
+            
+        #print(cld1.sum(),cld1.size, cld2.sum(),cld2.size,xs[i],ys[i])
+        #if cld1.sum()/cld1.size==1 and cld2.sum()/cld2.size==1:
+        if np.max(cld1)<0.3 and np.max(cld2)<0.3:
+            diff_img = diff(img1,img2, width,height)
+            diff_msk = np.abs(msk1-msk2)
+            diff_msk = (gaussian_filter(diff_msk , 0.5)>0)*255
+            diff_msk = diff_msk.astype(np.uint8)
+            diff_msk = cv2.resize(diff_msk, (height,width), interpolation = cv2.INTER_NEAREST)
+		
+            meta['width'] = width
+            meta['height'] = height
 
-	        with rs.open(os.path.join(diff_path, img_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.tiff'), 'w', **meta) as dst:
-	            for ix in range(diff_img.shape[2]):
-	                dst.write(diff_img[:, :, ix], ix + 1)
-	        dst.close()
+            with rs.open(os.path.join(diff_path, img_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.tiff'), 'w', **meta) as dst:
+                for ix in range(diff_img.shape[2]):
+                    dst.write(diff_img[:, :, ix], ix + 1)
+            dst.close()
 
-	        imageio.imwrite(os.path.join(diff_path, msk_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.png'), diff_msk)
-	        writer.writerow([
-	            diff_path.split('/')[-1], diff_path.split('/')[-1], xs[i]+'_'+ys[i], int(diff_msk.sum()/255)
-	        ])
-        else:
-	        pass
+            imageio.imwrite(os.path.join(diff_path, msk_path, diff_path.split('/')[-1]+'_'+xs[i]+'_'+ys[i]+'.png'), diff_msk)
+            writer.writerow([
+                diff_path.split('/')[-1], diff_path.split('/')[-1], xs[i]+'_'+ys[i], int(diff_msk.sum()/255)
+            ])
+        else: pass
 
-def get_diff_and_split(data_path, save_path, img_path, msk_path, cloud_path, width, height, neighbours, train_size, test_size, valid_size):
+def get_diff_and_split(data_path, save_path, polys_path, img_path, msk_path, cloud_path, width, height, neighbours, train_size, test_size, valid_size):
     tiles=getdates(data_path)
     df = pd.DataFrame(tiles, columns=['tileID','img_date'])
     df = df.sort_values(['img_date'],ascending=False)
     
-    infofile=os.path.join(save_path,'data_info.csv')    
+    infofile=os.path.join(save_path,'data_info.csv')
+
+    markups = [gp.read_file(os.path.join(polys_path, shp)) for shp in os.listdir(polys_path)]
+    for shp in markups:
+        shp['img_date'] = shp['img_date'].apply(
+            lambda x: datetime.datetime.strptime(x, '%Y-%m-%d')
+        )
+
     with open(infofile, 'w') as csvFile:
         writer = csv.writer(csvFile)
         writer.writerow([
@@ -140,17 +162,31 @@ def get_diff_and_split(data_path, save_path, img_path, msk_path, cloud_path, wid
             for j in range(i+1, i+1+neighbours):
                 if(j<len(df)):
                     print(str(df['img_date'].iloc[i].date())+' - '+str(df['img_date'].iloc[j].date()))
-                    diff_path = os.path.join(save_path, str(df['img_date'].iloc[i].date())+'_'+str(df['img_date'].iloc[j].date()))
-                    if not os.path.exists(diff_path):
-                        os.mkdir(diff_path)
-                    if not os.path.exists(os.path.join(diff_path,img_path)):
-                        os.mkdir(os.path.join(diff_path,img_path))
-                    if not os.path.exists(os.path.join(diff_path,msk_path)):
-                        os.mkdir(os.path.join(diff_path,msk_path))
-                    
-                    imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,
-                    	data_path, img_path, msk_path,cloud_path,
-                    	writer,width,height)
+                    print(f"dt={(df['img_date'].iloc[i]-df['img_date'].iloc[j]).days} days")
+                    diff_path = os.path.join(save_path, str(df['img_date'].iloc[i].date())+'_'+str(df['img_date'].iloc[j].date()))                    
+                    markup_number_i,markup_number_j=0,0
+                    for shp_num in range(len(markups)):
+	                    if df['img_date'].iloc[i]>=markups[shp_num]['img_date'].min() and df['img_date'].iloc[i]<=markups[shp_num]['img_date'].max():
+	                    	markup_number_i=shp_num
+	                    if df['img_date'].iloc[j]>=markups[shp_num]['img_date'].min() and df['img_date'].iloc[j]<=markups[shp_num]['img_date'].max():
+	                    	markup_number_j=shp_num
+
+                    if (df['img_date'].iloc[i]-df['img_date'].iloc[j]).days > neighbours*5:
+	                    pass
+                    elif markup_number_i!=markup_number_j:
+	                    pass
+                    else:
+	                    if not os.path.exists(diff_path):
+	                        os.mkdir(diff_path)
+	                    if not os.path.exists(os.path.join(diff_path,img_path)):
+	                        os.mkdir(os.path.join(diff_path,img_path))
+	                    if not os.path.exists(os.path.join(diff_path,msk_path)):
+	                        os.mkdir(os.path.join(diff_path,msk_path))
+
+	                    imgdiff(df['tileID'].iloc[i], df['tileID'].iloc[j],diff_path,
+                        data_path, img_path, msk_path,cloud_path,
+                        writer,width,height)
+
             
     df = pd.read_csv(infofile)
     xy = df['position'].unique()
@@ -172,6 +208,7 @@ def get_diff_and_split(data_path, save_path, img_path, msk_path, cloud_path, wid
     for data_type, name_type in zip([train,test,valid],['train','test','valid']):
         output_file=os.path.join(save_path,f'{name_type}_df.csv')
         os.system(f'head -n1 {infofile} > {output_file}')
+
         for position in data_type:
             df[df['position']==position].to_csv(output_file,mode='a',header=False,index=False,sep=',')
     print('Train split: %d'%len(train))
@@ -193,8 +230,8 @@ def augment_masked_images(data_path, save_path, img_path, msk_path, train_df_pat
     total_imgs = train_df.shape[0]
     train_df = train_df[train_df['mask_pxl']>0]
     masked_imgs = train_df.shape[0]
-    number_of_augmentation = 2#int(total_imgs/masked_imgs)+1
-    #print('number_of_augmentation:',number_of_augmentation)
+    number_of_augmentation = 2 #int(total_imgs/masked_imgs)+1
+    print('train images:',total_imgs)
     aug_path = os.path.join(save_path, 'augmented')
     if not os.path.exists(aug_path):
         os.mkdir(aug_path)
@@ -235,7 +272,7 @@ if __name__ == '__main__':
     assert args.neighbours > 0 and args.neighbours < 4
     if not os.path.exists(args.save_path):
         os.mkdir(args.save_path)
-    get_diff_and_split(args.data_path, args.save_path, args.img_path, args.msk_path, args.cld_path,
+    get_diff_and_split(args.data_path, args.save_path, args.polys_path, args.img_path, args.msk_path, args.cld_path,
                        args.width,args.height, args.neighbours,
                        args.train_size, args.test_size, args.valid_size)
     augment_masked_images(args.data_path, args.save_path, args.img_path, args.msk_path, 

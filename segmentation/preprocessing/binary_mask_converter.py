@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import imageio
 import datetime
 import argparse
@@ -19,26 +20,25 @@ def poly2mask(
         os.mkdir(save_path)
         print("Output directory created.")
 
-    markup = gp.read_file(polys_path)
+    markups = [gp.read_file(os.path.join(polys_path, shp)) for shp in os.listdir(polys_path)]
 
-    if filter_by_date:
-        markup['img_date'] = markup['img_date'].apply(
+    original_image_filename = os.path.basename(os.path.normpath(image_path))
+    dt = original_image_filename.split('_')[3][0:8]
+    if dt.endswith('T'):
+        dt = datetime.datetime.strptime(df[:-1], '%Y%m%d')
+    else:
+        dt = datetime.datetime.strptime(dt, '%Y%m%d')
+    if filter_by_date: print('image date:',dt)
+    
+    for shp in markups:
+        shp['img_date'] = shp['img_date'].apply(
             lambda x: datetime.datetime.strptime(x, '%Y-%m-%d')
         )
-
-        original_image_filename = os.path.basename(os.path.normpath(image_path))
-        print(original_image_filename)
-        #dt = datetime.datetime.strptime(original_image_filename.split('_')[3][0:7], '%Y%m%d')
-        dt = original_image_filename.split('_')[3][0:8]
-        if dt.endswith('T'):
-            dt = datetime.datetime.strptime(df[:-1], '%Y%m%d')
-        else:
-            dt = datetime.datetime.strptime(dt, '%Y%m%d')
-        print(dt)
-
-        if markup[markup['img_date'] <= dt].size == 0:
-            dt = markup['img_date'][0]
-
+    markup = pd.concat([shp for shp in markups if dt>=shp['img_date'].min() and dt<=shp['img_date'].max()])
+    if filter_by_date: 
+        print(f"Markup interval: {markup['img_date'].min()} - {markup['img_date'].max()}")
+        print("Number of polygons:", markup.size)
+    if filter_by_date:
         dt += datetime.timedelta(days=1)
         polys = markup[markup['img_date'] <= dt].loc[:, 'geometry']
     else:
@@ -70,9 +70,9 @@ def poly2mask(
 
     imageio.imwrite(filename, mask)
 
-    return filename
+    return filename, markup
 
-def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pieces_path):
+def split_mask(mask_path, save_mask_path, image_pieces_path):
     if not os.path.exists(save_mask_path):
         os.mkdir(save_mask_path)
 
@@ -83,8 +83,6 @@ def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pie
         }
     )
     mask = imageio.imread(mask_path)
-    if save_cloud_path:
-        clouds = imageio.imread(cloud_path)
     for i in range(pieces_info.shape[0]):
         piece = pieces_info.loc[i]
         piece_mask = mask[
@@ -95,19 +93,7 @@ def split_mask(mask_path, save_mask_path, cloud_path, save_cloud_path, image_pie
             save_mask_path,
             re.split(r'[/.]', piece['piece_image'])[-2]
         )
-        if save_cloud_path:
-            piece_cloud = clouds[
-                 piece['start_y']: piece['start_y'] + piece['height'],
-                 piece['start_x']: piece['start_x'] + piece['width']
-            ]
-            filename_cloud = '{}/{}.png'.format(
-                save_cloud_path,
-                re.split(r'[/.]', piece['piece_image'])[-2]
-            )
-            imageio.imwrite(filename_cloud, piece_cloud)
-            imageio.imwrite(filename_mask, np.multiply(piece_mask/255, piece_cloud/255)*255)
-        else:
-            imageio.imwrite(filename_mask, piece_mask)
+        imageio.imwrite(filename_mask, piece_mask)
 
 
 def parse_args():

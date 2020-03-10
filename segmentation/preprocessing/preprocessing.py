@@ -71,7 +71,7 @@ def merge_bands(tiff_filepath, save_path, channels):
 
 
 def preprocess(
-    tiff_path, save_path, cloud_path,
+    tiff_path, save_path,
     width, height,
     polys_path, channels, type_filter,
     pxl_size_threshold,
@@ -83,7 +83,6 @@ def preprocess(
 
     for tiff_name in get_folders(tiff_path):
         tiff_filepath = os.path.join(tiff_path, tiff_name)
-        
         if no_merge:
             tiff_file = join(save_path, f'{tiff_name}.tif')
         else:
@@ -92,30 +91,22 @@ def preprocess(
         data_path = os.path.join(save_path, basename(tiff_file[:-4]))
 
         # Full mask
-        _ = poly2mask(
+        poly2mask(
             polys_path, tiff_file, data_path,
             type_filter, filter_by_date=False
         )
         # Time-series mask
-        mask_path = poly2mask(
+        mask_path,markup = poly2mask(
             polys_path, tiff_file, data_path,
             type_filter, filter_by_date=True
         )
 
         divide_into_pieces(tiff_file, data_path, width, height)
-        clouds_path = os.path.join(cloud_path, basename(tiff_file[:-4])+'_clouds.png')
-        if not os.path.exists(clouds_path):
-            clouds_pieces_path = None
-        else:
-            clouds_pieces_path = os.path.join(data_path, 'clouds')
-            if not os.path.exists(clouds_pieces_path):
-                os.mkdir(clouds_pieces_path)
-
+        
         mask_pieces_path = os.path.join(data_path, 'masks')
         pieces_info = os.path.join(data_path, 'image_pieces.csv')
 
-        #split_mask(mask_path, pieces_path, pieces_info)
-        split_mask(mask_path, mask_pieces_path, clouds_path, clouds_pieces_path, pieces_info)
+        split_mask(mask_path, mask_pieces_path, pieces_info)
 
         geojson_polygons = os.path.join(data_path, "geojson_polygons")
         instance_masks_path = os.path.join(data_path, "instance_masks")
@@ -124,9 +115,9 @@ def preprocess(
             pieces_info_path=pieces_info, original_image_path=tiff_file,
             image_pieces_path=os.path.join(data_path, 'images'),
             mask_pieces_path=mask_pieces_path, 
-            clouds_pieces_path=clouds_pieces_path,
             pxl_size_threshold=pxl_size_threshold,
-            pass_chance=pass_chance
+            pass_chance=pass_chance,
+            markup=markup
         )
 
 
@@ -148,16 +139,11 @@ def parse_args():
         help='Path to directory where data will be stored'
     )
     parser.add_argument(
-        '--cloud_path', '-cp', dest='cloud_path',
-        default=None,
-        help='Path to clouds map file'
-    )
-    parser.add_argument(
-        '--width', '-w',  dest='width', default=224,
+        '--width', '-w',  dest='width', default=56,
         type=int, help='Width of a piece'
     )
     parser.add_argument(
-        '--height', '-hgt', dest='height', default=224,
+        '--height', '-hgt', dest='height', default=56,
         type=int, help='Height of a piece'
     )
     parser.add_argument(
@@ -188,7 +174,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     preprocess(
-        args.tiff_path, args.save_path, args.cloud_path,
+        args.tiff_path, args.save_path,
         args.width, args.height,
         args.polys_path, args.channels,
         args.type_filter,
