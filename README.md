@@ -67,7 +67,7 @@ python preprocessing.py \
  --save_path ../data/input
 ```
 
-6) After preprocessing, run the script for dividing cloud maps into pieces.
+6) After preprocessing, run the script for dividing cloud maps into pieces (`python split_clouds.py`).
 
 #### Example of input folder structure after preprocessing:
 ```
