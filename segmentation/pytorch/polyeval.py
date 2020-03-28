@@ -32,25 +32,26 @@ def polygonize(raster_array, meta=None, transform=False):
     return polygons
 
 def iou_poly(test_poly, truth_poly):
-    iou_list = []
+    iou_score = 0
     intersection_result = test_poly.intersection(truth_poly)
     if not intersection_result.is_empty:
         intersection_area = intersection_result.area
         union_area = test_poly.union(truth_poly).area
-        iou_list.append(intersection_area / union_area)
+        iou_score = intersection_area / union_area
     else:
-        iou_list.append(0)
-    return iou_list
+        iou_score = 0
+    return iou_score
 
 
 def score(test_polys, truth_polys, threshold=0.5):
     true_pos_count = 0
+    true_neg_count = 0
     false_pos_count = 0
     false_neg_count = 0
     total_count = 0
     for test_poly, truth_poly in zip(test_polys, truth_polys):
         if len(test_poly)==0 and len(truth_poly)==0:
-            true_pos_count += 1
+            true_neg_count += 1
             total_count+=1
         elif len(test_poly)==0 and len(truth_poly)>0:
             false_pos_count += 1
@@ -74,7 +75,8 @@ def score(test_polys, truth_polys, threshold=0.5):
                 false_pos_count += (len(truth_poly) - len(intersected))
                 total_count+=(len(truth_poly) - len(intersected))
             for inter in intersected:
-                iou_list = iou_poly(inter[0], inter[1])
+                iou_score = iou_poly(inter[0], inter[1])
+
                 '''
                 xs, ys = inter[0].exterior.xy
                 plt.fill(xs, ys, alpha=0.5, fc='r', label='Test')
@@ -84,12 +86,8 @@ def score(test_polys, truth_polys, threshold=0.5):
                 plt.title(iou_list)
                 plt.show()
                 '''
-                if not iou_list:
-                    maxiou = 0
-                else:
-                    maxiou = np.max(iou_list)
 
-                if maxiou >= threshold:
+                if iou_score >= threshold:
                     true_pos_count += 1
                     total_count+=1
                 else:
