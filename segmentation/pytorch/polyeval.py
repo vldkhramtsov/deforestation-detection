@@ -34,6 +34,8 @@ def polygonize(raster_array, meta=None, transform=False):
 def iou_poly(test_poly, truth_poly):
     iou_score = 0
     intersection_result = test_poly.intersection(truth_poly)
+    if not intersection_result.is_valid:
+        intersection_result = intersection_result.buffer(0)
     if not intersection_result.is_empty:
         intersection_area = intersection_result.area
         union_area = test_poly.union(truth_poly).area
@@ -64,10 +66,14 @@ def score(test_polys, truth_polys, threshold=0.5):
             
             for test_p in test_poly:
                 for truth_p in truth_poly:
-                    if test_p.intersection(truth_p).is_empty:
-                        pass
-                    else:
-                        intersected.append([test_p, truth_p])
+                    if not test_p.is_valid:
+                        test_p = test_p.buffer(0)
+                    if not truth_p.is_valid:
+                        truth_p = truth_p.buffer(0)
+                    if test_p.intersection(truth_p).is_valid:
+                        if not test_p.intersection(truth_p).is_empty:
+                            intersected.append([test_p, truth_p])
+                            
             if len(intersected) < len(test_poly):
                 false_neg_count += (len(test_poly) - len(intersected))
                 total_count+=(len(test_poly) - len(intersected))
