@@ -32,7 +32,7 @@ password and sentinel_id parameters.
    * Polygons subfolder stores markup
    * Subfolder containing cloud maps for each image tile
 
-2) The source folder contains folders for each image that you downloaded. In that folder you have to store TIFF images of channels (in our case RGB, B2 and B8) named as f”{image_folder}\_{channel}.tif”.
+2) The source folder contains folders for each image that you downloaded. In that folder you have to store TIFF images of channels (in our case 'rgb', 'b8', 'b8a', 'b10', 'b11', 'b12', 'ndvi', 'ndmi' channels) named as f”{image_folder}\_{channel}.tif”.
 
 3) If you have already merged bands to a single TIFF, you can just move it to input folder. But you have to create the folder (it can be empty) for this image in the source folder.
 
@@ -91,17 +91,17 @@ input
 │   └── clouds
 └── image1.tif
 ```
-6) Run image difference script with specified to calculate pairwise differences of images/masks between close dates and to create the train/test/val datasets.
+6) Run image difference script with specified to calculate pairwise differences of images/masks between close dates and to create the train/test/val datasets (or the script to prepare data for siamese networks, `image_siamese.py`).
 ```
-python image_difference.py --save_path ... --neighbours 3
+python image_difference.py
 ```
 
 ### Model training
-1) If it necessary specify augmentation in pytorch/dataset.py
+1) If it necessary specify augmentation in pytorch/dataset.py for `Dataset` and `SiamDataset`.
 
-2) Specify hyperparams in pytorch/train.py
+2) Specify hyperparams in pytorch/train.py (for image difference) and in pytorch/trainsiam.py (for siamese networks; `Trainer` class is in pytorch/models/utils.py file)
 
-3) Run training `python train.py`
+3) Run training `python train.py` (for image difference) or `python trainsiam.py` (for siamese networks)
 
 ### Model evaluation
 1) Generate predictions 
@@ -120,6 +120,5 @@ python evaluation.py \
  --test_df_path ../data/test_df.csv \
  --output_name …
 ```
-3) Run notebooks/tf_records_visualizer.ipynb to view results of evaluation.
 
-4) Run notebooks/f1_score.ipynb to get metrics for the whole image.
+**To simplify the training, prediction and evaluation code running, we recommend to use the `*.sh` scripts in pytorch folder.**
