@@ -5,9 +5,9 @@ from torch.nn import Module
 from torch.nn import functional as F
 from torch.autograd import Variable
 
-from metrics import multi_class_dice
+from .metrics import multi_class_dice
 
-ALPHA = 0.9
+ALPHA = 0.5
 BETA = 1-ALPHA #0.1
 
 class TverskyLoss(Module):
@@ -56,7 +56,6 @@ class FocalLoss(Module):
 
 
 class BCE_Dice_Loss(Module):
-
     def __init__(self, bce_weight=0.5):
         super(BCE_Dice_Loss, self).__init__()
         self.bce_weight = bce_weight
@@ -68,6 +67,27 @@ class BCE_Dice_Loss(Module):
 
         loss = bce * self.bce_weight + dice * (1 - self.bce_weight)
         
+        return loss
+
+
+class Double_Loss(Module):
+    def __init__(self, bce_weight=0.1, dice_weight=0.6, class_weigh=0.3):
+        super(Double_Loss, self).__init__()
+        self.bce_weight = bce_weight
+        self.dice_weight = dice_weight
+        self.class_weigh = class_weigh
+
+    def forward(self, x, y):
+        x_segm, x_class = x[0], x[1]
+        y_segm, y_class = y[0], y[1]
+        
+        bce = F.binary_cross_entropy_with_logits(x_segm, y_segm)
+        dice = dice_loss(x_segm, y_segm)
+
+        bce_class = F.binary_cross_entropy_with_logits(x_class, y_class)
+
+        loss = bce * self.bce_weight + dice * self.dice_weight
+        loss += bce_class * self.class_weigh
         return loss
 
 

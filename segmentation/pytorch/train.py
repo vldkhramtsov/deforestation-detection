@@ -1,21 +1,26 @@
+import os
+import torch
 import argparse
 import collections
-import os
 
 import numpy as np
 import pandas as pd
-import torch
-from catalyst.dl.callbacks import InferCallback, CheckpointCallback, DiceCallback
-from catalyst.dl.experiments import SupervisedRunner
+
 from catalyst.dl.utils import UtilsFactory
+from catalyst.dl.experiments import SupervisedRunner
+from catalyst.dl.callbacks import InferCallback, CheckpointCallback, DiceCallback
+
 from torch import nn, cuda
 from torch.backends import cudnn
 
+from poutyne.framework import Model
+from poutyne.framework.callbacks import ModelCheckpoint
+from poutyne.framework.callbacks.lr_scheduler import MultiStepLR
+
 from dataset import Dataset
-from losses import BCE_Dice_Loss, FocalLoss, LovaszHingeLoss, TverskyLoss
-from models.utils import get_model
-from utils import count_channels
-from radam import RAdam
+from utils import count_channels, str2bool
+from models.utils import get_model, get_optimizer, get_loss, set_random_seed
+from models.metrics import classification_head_accuracy, segmentation_head_dice
 
 import warnings
 warnings.simplefilter("ignore")
@@ -24,8 +29,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--batch_size', type=int, default=32)
+    arg('--batch_size', type=int, default=64)
     arg('--num_workers', type=int, default=4)
+    arg('--neighbours', type=int, default=1)
     arg('--epochs', '-e', type=int, default=100)
     arg('--lr', type=float, default=1e-3)
 
@@ -39,101 +45,83 @@ def parse_args():
     arg('--loss', default='bce_dice')
     arg('--image_size', '-is', type=int, default=224)
     arg('--network', '-n', default='unet50')
+    arg('--classification_head', required=True, type=str2bool)
     arg(
         '--channels', '-ch',
-        default=['rgb', 'ndvi', 'b8'],
+        default=['rgb', 'b8', 'b8a', 'b10', 'b11', 'b12', 'ndvi', 'ndmi'],
         nargs='+', help='Channels list')
-
     return parser.parse_args()
 
 
-def set_random_seed(seed):
-    np.random.seed(seed)
-    cudnn.deterministic = True
-    cudnn.benchmark = False
-    torch.manual_seed(seed)
-    if cuda.is_available():
-        cuda.manual_seed_all(seed)
-
-    print('Random seed:', seed)
-
-
 def train(args):
-    set_random_seed(42)
-    model = get_model(args.network)
+    set_random_seed(100)
+    model = get_model(args.network, args.classification_head)
     print('Loading model')
+
     model.encoder.conv1 = nn.Conv2d(
-        count_channels(args.channels), 64, kernel_size=(7, 7),
+        count_channels(args.channels)*args.neighbours, 64, kernel_size=(7, 7),
         stride=(2, 2), padding=(3, 3), bias=False)
+    
     model, device = UtilsFactory.prepare_model(model)
+    
     train_df = pd.read_csv(args.train_df).to_dict('records')
     val_df = pd.read_csv(args.val_df).to_dict('records')
 
-    ds = Dataset(args.channels, args.dataset_path, args.image_size, args.batch_size, args.num_workers)
+    ds = Dataset(args.channels, args.dataset_path, args.image_size, args.batch_size, args.num_workers, args.neighbours, args.classification_head)
     loaders = ds.create_loaders(train_df, val_df)
-
-    if(args.optimizer=='Adam'):
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    elif(args.optimizer=='SGD'):
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
-    elif(args.optimizer=='RAdam'):
-        optimizer = RAdam(model.parameters(), lr=args.lr)
-    else:
-        print('Unknown argument. Return to the default optimizer (Adam)')
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-    if(args.loss=='bce_dice'):
-        criterion = BCE_Dice_Loss(bce_weight=0.2)
-    elif(args.loss=='focal'):
-        criterion = FocalLoss()
-    elif(args.loss=='lovasz'):
-        criterion = LovaszHingeLoss()
-    elif(args.loss=='tversky'):
-        criterion = TverskyLoss()
-    else:
-        print('Unknown argument. Return to the default loss (BCE)')
-        criterion = BCE_Dice_Loss(bce_weight=0.2)
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[10, 40, 80], gamma=0.1
-    )
 
     save_path = os.path.join(
         args.logdir,
         args.name
     )
 
-    # model runner
-    runner = SupervisedRunner()
-    if args.model_weights_path:
-        checkpoint = torch.load(args.model_weights_path, map_location='cpu')
-        model.load_state_dict(checkpoint['model_state_dict'])
-    # model training
-    runner.train(
-        model=model,
-        criterion=criterion,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        loaders=loaders,
-        callbacks=[
-            DiceCallback()
-        ],
-        logdir=save_path,
-        num_epochs=args.epochs,
-        verbose=True
-    )
+    optimizer = get_optimizer(args.optimizer, args.lr, model)
 
-    infer_loader = collections.OrderedDict([('infer', loaders['valid'])])
-    runner.infer(
-        model=model,
-        loaders=infer_loader,
-        callbacks=[
-            CheckpointCallback(resume=f'{save_path}/checkpoints/best.pth'),
-            InferCallback()
-        ],
-    )
+    if not args.classification_head:
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones=[10, 40, 80, 150, 300], gamma=0.1
+        )
 
+        criterion = get_loss(args.loss)
+        
+        runner = SupervisedRunner()
+        if args.model_weights_path:
+            checkpoint = torch.load(args.model_weights_path, map_location='cpu')
+            model.load_state_dict(checkpoint['model_state_dict'])
+        
+        runner.train(
+            model=model,
+            criterion=criterion,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            loaders=loaders,
+            callbacks=[
+                DiceCallback()
+            ],
+            logdir=save_path,
+            num_epochs=args.epochs,
+            verbose=True
+        )
+
+        infer_loader = collections.OrderedDict([('infer', loaders['valid'])])
+        runner.infer(
+            model=model,
+            loaders=infer_loader,
+            callbacks=[
+                CheckpointCallback(resume=f'{save_path}/checkpoints/best.pth'),
+                InferCallback()
+            ],
+        )
+    else:
+        criterion = get_loss('multi')
+        net = Model(model, optimizer, criterion, batch_metrics=[classification_head_accuracy, segmentation_head_dice])
+        net = net.to(device)
+        net.fit_generator(
+            loaders['train'], loaders['valid'],
+            epochs=args.epochs,
+            callbacks=[ModelCheckpoint(f'{save_path}/checkpoints/best.pth', ), 
+                       MultiStepLR(milestones=[10, 40, 80, 150, 300], gamma=0.1)]
+            )
 
 if __name__ == '__main__':
     args = parse_args()

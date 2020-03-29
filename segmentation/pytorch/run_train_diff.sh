@@ -5,15 +5,15 @@ image_size=56
 
 neighbours=3
 
-epochs=350
+epochs=3
 lr=1e-2
 image_size=56
 
 network=unet18
-loss=focal
+loss=bce_dice
 optimizer=Adam
 
-name="temp_"$network"_"$optimizer"_"$loss"_"$lr
+name="attention_"$network"_"$optimizer"_"$loss"_"$lr
 echo "$name"
 
 #_='
@@ -28,7 +28,8 @@ python train.py --epochs $epochs \
  			    --train_df $data_path/train_df.csv \
  			    --val_df $data_path/valid_df.csv \
  			    --channels rgb b8 b8a b11 b12 ndvi ndmi \
- 			    --neighbours $neighbours 
+ 			    --neighbours $neighbours \
+ 			    --classification_head y 
  			    #--val_df $data_path/onlymasksplit/valid_df.csv \
                 #--model_weights_path ../logs/$name_pretrain/checkpoints/best.pth
 #'

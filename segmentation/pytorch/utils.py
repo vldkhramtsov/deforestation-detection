@@ -3,6 +3,15 @@ import re
 import imageio
 import numpy as np
 
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def join_pathes(*pathes):
     return os.path.join(*pathes)
@@ -33,26 +42,34 @@ def count_channels(channels):
     for ch in channels:
         if ch == 'rgb':
             count += 3
-        elif ch in ['ndvi', 'b8']:
-            count += 1
         else:
-            raise Exception('{} channel is unknown!'.format(ch))
-
+            count += 1
     return count
 
 
-def filter_by_channels(image_tensor, channels):
+def filter_by_channels(image_tensor, channels, neighbours):
+    #['TCI','B08','B8A','B10','B11','B12', 'NDVI', 'NDMI']
     result = []
-    for ch in channels:
-        if ch == 'rgb':
-            result.append(image_tensor[:, :, :3])
-        elif ch == 'ndvi':
-            result.append(image_tensor[:, :, 3:4])
-        elif ch == 'b8':
-            result.append(image_tensor[:, :, 4:5])
-        else:
-            raise Exception(f'{ch} channel is unknown!')
-
+    for i in range(neighbours):
+        for ch in channels:
+            if ch == 'rgb':
+                result.append(image_tensor[:, :, (0+i*10):(3+i*10)])
+            elif ch == 'b8':
+                result.append(image_tensor[:, :, (3+i*10):(4+i*10)])
+            elif ch == 'b8a':
+                result.append(image_tensor[:, :, (4+i*10):(5+i*10)])
+            elif ch == 'b10':
+                result.append(image_tensor[:, :, (5+i*10):(6+i*10)])
+            elif ch == 'b11':
+                result.append(image_tensor[:, :, (6+i*10):(7+i*10)])
+            elif ch == 'b12':
+                result.append(image_tensor[:, :, (7+i*10):(8+i*10)])
+            elif ch == 'ndvi':
+                result.append(image_tensor[:, :, (8+i*10):(9+i*10)])
+            elif ch == 'ndmi':
+                result.append(image_tensor[:, :, (9+i*10):(10+i*10)])
+            else:
+                raise Exception(f'{ch} channel is unknown!')
     return np.concatenate(result, axis=2)
 
 

@@ -16,21 +16,24 @@ from catalyst.dl.experiments import SupervisedRunner
 
 from dataset import Dataset
 from models.utils import get_model
-from utils import get_filepath, count_channels, read_tensor, filter_by_channels
-
+from utils import get_filepath, count_channels, read_tensor, filter_by_channels, str2bool
 
 def predict(
         data_path, model_weights_path, network,
-        test_df_path, save_path, size, channels
+        test_df_path, save_path, size, channels, neighbours,
+        classification_head
 ):
-    model = get_model(network)
+    model = get_model(network, classification_head)
     model.encoder.conv1 = nn.Conv2d(
-        count_channels(args.channels), 64, kernel_size=(7, 7),
+        count_channels(channels)*neighbours, 64, kernel_size=(7, 7),
         stride=(2, 2), padding=(3, 3), bias=False
     )
 
-    checkpoint = torch.load(model_weights_path, map_location='cpu')
-    model.load_state_dict(checkpoint['model_state_dict'])
+    if classification_head:
+        model.load_state_dict(torch.load(model_weights_path))
+    else:
+        checkpoint = torch.load(model_weights_path, map_location='cpu')
+        model.load_state_dict(checkpoint['model_state_dict'])
 
     test_df = pd.read_csv(test_df_path)
 
@@ -50,14 +53,17 @@ def predict(
 
         image_tensor = filter_by_channels(
             read_tensor(image_path),
-            channels
+            channels,
+            neighbours
         )
         if image_tensor.ndim == 2:
             image_tensor = np.expand_dims(image_tensor, -1)
 
         image = transforms.ToTensor()(image_tensor)
-
-        prediction = model.predict(image.view(1, count_channels(channels), size, size))
+        if classification_head:
+            prediction, label = model.predict(image.view(1, count_channels(channels)*neighbours, size, size))
+        else:
+            prediction = model.predict(image.view(1, count_channels(channels)*neighbours, size, size))
 
         result = prediction.view(size, size).detach().numpy()
 
@@ -79,7 +85,7 @@ def tta_pred_eval(
     data_path, model_weights_path, network,
         test_df_path, save_path, size, channels, merge_mode
         ):
-    model = get_model(network)
+    model = get_model(network, classification_head)
     model.encoder.conv1 = nn.Conv2d(
         count_channels(args.channels), 64, kernel_size=(7, 7),
         stride=(2, 2), padding=(3, 3), bias=False
@@ -146,8 +152,10 @@ def parse_args():
     parser.add_argument('--save_path', '-sp', required=True, help='Path to save predictions')
     parser.add_argument('--size', '-s', default=112, type=int, help='Image size')
     parser.add_argument('--channels', '-ch', default=['rgb', 'ndvi', 'b8'], nargs='+', help='Channels list')
-    parser.add_argument('--tta', '-t', default=False, type=bool, help='Use TTA (True\False)')
+    parser.add_argument('--neighbours', type=int, default=1)
+    parser.add_argument('--tta', '-t', default=False, type=bool, help='Use TTA (True | False)')
     parser.add_argument('--merge_mode', '-mm', default='mean', type=str, help='Merge TTA')
+    parser.add_argument('--classification_head', required=True, type=str2bool)
     return parser.parse_args()
 
 
@@ -163,5 +171,6 @@ if __name__ == '__main__':
         predict(
         args.data_path, args.model_weights_path,
         args.network, args.test_df, args.save_path,
-        args.size, args.channels
+        args.size, args.channels, args.neighbours,
+        args.classification_head
         )

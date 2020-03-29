@@ -71,7 +71,7 @@ def merge_bands(tiff_filepath, save_path, channels):
 
 
 def preprocess(
-    tiff_path, save_path,
+    tiff_path, tiff_name, save_path,
     width, height,
     polys_path, channels, type_filter,
     pxl_size_threshold,
@@ -81,44 +81,44 @@ def preprocess(
         os.makedirs(save_path, exist_ok=True)
         print("Save directory created.")
 
-    for tiff_name in get_folders(tiff_path):
-        tiff_filepath = os.path.join(tiff_path, tiff_name)
-        if no_merge:
-            tiff_file = join(save_path, f'{tiff_name}.tif')
-        else:
-            tiff_file = merge_bands(tiff_filepath, save_path, channels)
-        
-        data_path = os.path.join(save_path, basename(tiff_file[:-4]))
+    #for tiff_name in get_folders(tiff_path):
+    tiff_filepath = os.path.join(tiff_path, tiff_name)
+    if no_merge:
+        tiff_file = join(save_path, f'{tiff_name}.tif')
+    else:
+        tiff_file = merge_bands(tiff_filepath, save_path, channels)
+    
+    data_path = os.path.join(save_path, basename(tiff_file[:-4]))
 
-        # Full mask
-        poly2mask(
-            polys_path, tiff_file, data_path,
-            type_filter, filter_by_date=False
-        )
-        # Time-series mask
-        mask_path,markup = poly2mask(
-            polys_path, tiff_file, data_path,
-            type_filter, filter_by_date=True
-        )
+    # Full mask
+    poly2mask(
+        polys_path, tiff_file, data_path,
+        type_filter, filter_by_date=False
+    )
+    # Time-series mask
+    mask_path, markup = poly2mask(
+        polys_path, tiff_file, data_path,
+        type_filter, filter_by_date=True
+    )
 
-        divide_into_pieces(tiff_file, data_path, width, height)
-        
-        mask_pieces_path = os.path.join(data_path, 'masks')
-        pieces_info = os.path.join(data_path, 'image_pieces.csv')
+    divide_into_pieces(tiff_file, data_path, width, height)
+    
+    mask_pieces_path = os.path.join(data_path, 'masks')
+    pieces_info = os.path.join(data_path, 'image_pieces.csv')
 
-        split_mask(mask_path, mask_pieces_path, pieces_info)
+    split_mask(mask_path, mask_pieces_path, pieces_info)
 
-        geojson_polygons = os.path.join(data_path, "geojson_polygons")
-        instance_masks_path = os.path.join(data_path, "instance_masks")
-        filter_poly(
-            poly_pieces_path=geojson_polygons, markup_path=polys_path,
-            pieces_info_path=pieces_info, original_image_path=tiff_file,
-            image_pieces_path=os.path.join(data_path, 'images'),
-            mask_pieces_path=mask_pieces_path, 
-            pxl_size_threshold=pxl_size_threshold,
-            pass_chance=pass_chance,
-            markup=markup
-        )
+    geojson_polygons = os.path.join(data_path, "geojson_polygons")
+    instance_masks_path = os.path.join(data_path, "instance_masks")
+    filter_poly(
+        poly_pieces_path=geojson_polygons, markup_path=polys_path,
+        pieces_info_path=pieces_info, original_image_path=tiff_file,
+        image_pieces_path=os.path.join(data_path, 'images'),
+        mask_pieces_path=mask_pieces_path, 
+        pxl_size_threshold=pxl_size_threshold,
+        pass_chance=pass_chance,
+        markup=markup
+    )
 
 
 def parse_args():
@@ -126,12 +126,16 @@ def parse_args():
         description='Script for creating binary mask from geojson.'
     )
     parser.add_argument(
+        '--tiff_file', '-tf', dest='tiff_file',
+        required=True, help='Name of the directory with source tiff folders'
+    )
+    parser.add_argument(
         '--polys_path', '-pp', dest='polys_path',
-        required=True, help='Path to the polygons'
+        default='../data/polygons', help='Path to the polygons'
     )
     parser.add_argument(
         '--tiff_path', '-tp', dest='tiff_path',
-        required=True, help='Path to directory with source tiff folders'
+        default='../data/source', help='Path to directory with source tiff folders'
     )
     parser.add_argument(
         '--save_path', '-sp', dest='save_path',
@@ -152,7 +156,7 @@ def parse_args():
         nargs='+', help='Channels list'
     )
     parser.add_argument(
-        '--type_filter', '-tf', dest='type_filter',
+        '--type_filter', '-tc', dest='type_filter',
         help='Type of clearcut: "open" or "closed")'
     )
     parser.add_argument(
@@ -174,7 +178,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     preprocess(
-        args.tiff_path, args.save_path,
+        args.tiff_path, args.tiff_file, args.save_path,
         args.width, args.height,
         args.polys_path, args.channels,
         args.type_filter,
