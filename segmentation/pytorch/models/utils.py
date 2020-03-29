@@ -303,7 +303,7 @@ class Trainer(object):
 
             dice_score = dice_coef(masks, batch_preds, base_threshold, eps=1e-7)
 
-            test_polys.append(polygonize(batch_preds.astype(np.uint8)))
+            test_polys.append(polygonize(((batch_preds>base_threshold)*1).astype(np.uint8)))
             truth_polys.append(polygonize(masks.astype(np.uint8)))
 
             predictions.append([batch['name'][0], batch['position'][0], masks.sum(), ((batch_preds>base_threshold)*1).sum(), dice_score])
