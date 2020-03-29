@@ -275,7 +275,7 @@ class Trainer(object):
                 os.system(f"> {self.save_path}/state.pth")
                 torch.save(state, f"{self.save_path}/state.pth")
                 torch.save(self.net, f"{self.save_path}/best.pth")
-            if epoch - best_epoch > 20:
+            if epoch - best_epoch > 40:
                 print(f'Early stopping. State was saved at epoch {best_epoch}.')
                 break
         print('best loss:', self.best_loss)
