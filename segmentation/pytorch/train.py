@@ -48,7 +48,7 @@ def parse_args():
     arg('--classification_head', required=True, type=str2bool)
     arg(
         '--channels', '-ch',
-        default=['rgb', 'b8', 'b8a', 'b10', 'b11', 'b12', 'ndvi', 'ndmi'],
+        default=['rgb', 'b8', 'b8a', 'b11', 'b12', 'ndvi', 'ndmi'],
         nargs='+', help='Channels list')
     return parser.parse_args()
 
@@ -75,6 +75,8 @@ def train(args):
         args.name
     )
 
+    os.system(f'mkdir {save_path}')
+    os.system(f'mkdir {save_path}/checkpoints')
     optimizer = get_optimizer(args.optimizer, args.lr, model)
 
     if not args.classification_head:
