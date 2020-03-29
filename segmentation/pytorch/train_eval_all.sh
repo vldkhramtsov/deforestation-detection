@@ -148,7 +148,6 @@ python trainsiam.py --epochs $epochs \
 
 
 
-
 data_path=../data/diff_conc
 image_size=56
 
@@ -183,7 +182,7 @@ python train.py --epochs $epochs \
 
 ./run_pred_diff.sh $name $network $data_path $image_size $head
 ./run_eval_diff.sh $name $network $data_path $image_size
-./run_plot_diff.sh $name
+./run_plot_diff.sh $name $data_path
 
 
 head=False
@@ -207,6 +206,6 @@ python train.py --epochs $epochs \
 
 ./run_pred_diff.sh $name $network $data_path $image_size $head
 ./run_eval_diff.sh $name $network $data_path $image_size
-./run_plot_diff.sh $name
+./run_plot_diff.sh $name $data_path
 
 
