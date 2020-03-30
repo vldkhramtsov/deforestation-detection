@@ -1,4 +1,5 @@
 import os
+import torch
 import argparse
 import collections
 
@@ -6,11 +7,11 @@ import cv2 as cv
 import numpy as np
 import pandas as pd
 import ttach as tta
-from tqdm import tqdm
-
-import torch
-from torch import nn
 import torchvision.transforms as transforms
+
+from tqdm import tqdm
+from torch import nn
+from catalyst.dl.utils import UtilsFactory
 from catalyst.dl.experiments import SupervisedRunner
 
 
@@ -29,6 +30,8 @@ def predict(
         stride=(2, 2), padding=(3, 3), bias=False
     )
 
+    model, device = UtilsFactory.prepare_model(model)
+    
     if classification_head:
         model.load_state_dict(torch.load(model_weights_path))
     else:
@@ -61,11 +64,11 @@ def predict(
 
         image = transforms.ToTensor()(image_tensor)
         if classification_head:
-            prediction, label = model.predict(image.view(1, count_channels(channels)*neighbours, size, size))
+            prediction, label = model.predict(image.view(1, count_channels(channels)*neighbours, size, size).to(device, dtype=torch.float))
         else:
-            prediction = model.predict(image.view(1, count_channels(channels)*neighbours, size, size))
+            prediction = model.predict(image.view(1, count_channels(channels)*neighbours, size, size).to(device, dtype=torch.float))
 
-        result = prediction.view(size, size).detach().numpy()
+        result = prediction.view(size, size).detach().cpu().numpy()
 
         cv.imwrite(
             get_filepath(predictions_path, filename, file_type='png'),
@@ -83,23 +86,29 @@ def mean_mask(masks):
 
 def tta_pred_eval(
     data_path, model_weights_path, network,
-        test_df_path, save_path, size, channels, merge_mode
+        test_df_path, save_path, size, channels, merge_mode,
+         neighbours,classification_head
         ):
     model = get_model(network, classification_head)
     model.encoder.conv1 = nn.Conv2d(
-        count_channels(args.channels), 64, kernel_size=(7, 7),
+        count_channels(channels)*neighbours, 64, kernel_size=(7, 7),
         stride=(2, 2), padding=(3, 3), bias=False
     )
+
+    model, device = UtilsFactory.prepare_model(model)
+
+    transformers=tta.aliases.d4_transform()    
     
-    checkpoint = torch.load(model_weights_path, map_location='cpu')
-    model.load_state_dict(checkpoint['model_state_dict'])
+    if classification_head:
+        model.load_state_dict(torch.load(model_weights_path))
+    else:
+        checkpoint = torch.load(model_weights_path, map_location='cpu')
+        model.load_state_dict(checkpoint['model_state_dict'])
 
     test_df = pd.read_csv(test_df_path)
 
     predictions_path = os.path.join(save_path, "predictions")
-    
-    transformers=tta.aliases.d4_transform()
-    
+
     if not os.path.exists(predictions_path):
         os.makedirs(predictions_path, exist_ok=True)
         print("Prediction directory created.")
@@ -114,7 +123,8 @@ def tta_pred_eval(
 
         image_tensor = filter_by_channels(
             read_tensor(image_path),
-            channels
+            channels,
+            neighbours
         )
         if image_tensor.ndim == 2:
             image_tensor = np.expand_dims(image_tensor, -1)
@@ -122,10 +132,14 @@ def tta_pred_eval(
         image = transforms.ToTensor()(image_tensor)
         masks = []
         for transformer in transformers:
-            augmented_image = transformer.augment_image(image.view(1, count_channels(channels), size, size))
-            prediction = model.predict(augmented_image)
+            augmented_image = transformer.augment_image(image.view(1, count_channels(channels)*neighbours, size, size))
+            if classification_head:
+                prediction, label = model.predict(augmented_image.to(device, dtype=torch.float))
+            else:
+                prediction = model.predict(augmented_image.to(device, dtype=torch.float))
+
             deaug_mask = transformer.deaugment_mask(prediction)
-            masks.append(deaug_mask.view(size, size).detach().numpy())
+            masks.append(deaug_mask.view(size, size).detach().cpu().numpy())
         
         if merge_mode=='mean':
             result = mean_mask(masks)
@@ -134,8 +148,6 @@ def tta_pred_eval(
         else:
             result = mean_mask(masks)
         
-        #result = prediction.view(size, size).detach().numpy()
-
         cv.imwrite(
             get_filepath(predictions_path, filename, file_type='png'),
             result * 255
@@ -165,7 +177,8 @@ if __name__ == '__main__':
         tta_pred_eval(
         args.data_path, args.model_weights_path,
         args.network, args.test_df, args.save_path,
-        args.size, args.channels, args.merge_mode
+        args.size, args.channels, args.merge_mode,
+        args.neighbours,args.classification_head
         )
     else:
         predict(
