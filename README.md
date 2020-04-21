@@ -1,4 +1,4 @@
-# Deforestation Detection  
+# Deforestation Detection: time-dependent models
 
 ## Project structure info
  * `input` - scripts for data download and preparation
@@ -26,7 +26,7 @@ password and sentinel_id parameters.
 6) Run `prepare_clouds.py` (by defaults, this script is executing with `./PREPARE_IMAGES.sh "data_folder" "save_path"` script)
 
 ### Data preparation
-1) Create folder in clearcut_research where is stored data:
+1) Create folder where the following data are stored:
    * Source subfolder stores raw data that has to be preprocess
    * Input subfolder stores data that is used in training and evaluation
    * Polygons subfolder stores markup
@@ -53,13 +53,15 @@ data
     ├── image0
     │   ├── image0_b2.tif
     │   ├── image0_b8.tif
+    │   ├── ...
     │   └── image0_rgb.tif
     └── image1
         ├── iamge1_b2.tif
         ├── image1_b8.tif
+        ├── ...
         └── image1_rgb.tif
 ```
-5) Run preprocessing on this data. You can specify other params if it necessary (add --no_merge if you have already merged channels with prepare_tif.py script).
+5) Run preprocessing on this data. You can specify other params if it necessary (**add --no_merge if you have already merged channels with prepare_tif.py script**).
 ```
 python preprocessing.py \
  --polys_path ../data/polygons \
@@ -67,7 +69,7 @@ python preprocessing.py \
  --save_path ../data/input
 ```
 
-6) After preprocessing, run the script for dividing cloud maps into pieces (`python split_clouds.py`).
+6) After preprocessing, run the script for dividing cloud maps into pieces (`python split_clouds.py`) with specified parameters.
 
 #### Example of input folder structure after preprocessing:
 ```
@@ -77,7 +79,6 @@ input
 │   ├── image0.png
 │   ├── image_pieces.csv
 │   ├── images
-│   ├── instance_masks
 │   ├── masks
 │   └── clouds
 ├── image0.tif
@@ -86,39 +87,184 @@ input
 │   ├── image1.png
 │   ├── image_pieces.csv
 │   ├── images
-│   ├── instance_masks
 │   ├── masks
 │   └── clouds
 └── image1.tif
 ```
-6) Run image difference script with specified to calculate pairwise differences of images/masks between close dates and to create the train/test/val datasets (or the script to prepare data for siamese networks, `image_siamese.py`).
+6) Run image sequence creation script. This scipts are different for different models:
 ```
 python image_difference.py
 ```
+- to create input images for UNet-diff and UNet-CH models (parameter --classification_head `boolean` is corresponded for chooice of the model). Output of the script are stacking of three images (img1, img2, and their difference) and difference mask;
 
-### Model training
-1) If it necessary specify augmentation in pytorch/dataset.py for `Dataset` and `SiamDataset`.
-
-2) Specify hyperparams in pytorch/train.py (for image difference) and in pytorch/trainsiam.py (for siamese networks; `Trainer` class is in pytorch/models/utils.py file)
-
-3) Run training `python train.py` (for image difference) or `python trainsiam.py` (for siamese networks)
-
-### Model evaluation
-1) Generate predictions 
 ```
-python prediction.py \
- --data_path ../data/input \
- --model_weights_path … \
- --test_df ../data/test_df.csv \
- --save_path ../data
+python image_siamese.py
+```
+- to create input images for UNet2D, UNet3D, Siam-Conc and Siam-Diff models. Output of the script are separated files for each pair of images from the sequence and difference mask;
+
+```
+python image_lstm.py
+```
+- to create input images for UNEt-LSTM model. Output of the script are separated images from the sequence (len of which may be specified in the script) and mask for each image from sequence;
+
+Each scripts creates the input files ready for learning, with spatial train/test/val datasets.
+
+### Models overview
+## Implemented models:
+  * UNet-diff (pytorch/models/utils.py `get_model('unet18')`)
+  * UNet-CH   (pytorch/models/utils.py `get_model('unet18', classification_head=True)`)
+  * UNet2D    (pytorch/models/siamese.py `Unet`)
+  * UNet3D    (pytorch/models/siamese.py `Unet3D`)
+  * Siam-Diff (pytorch/models/siamese.py `SiamUnet_diff`)
+  * Siam-Conc (pytorch/models/siamese.py `SiamUnet_conc`)
+  * UNet-LSTM (pytorch/models/u_lstm.py `Unet_LstmDecoder`)
+  
+1) If it necessary specify augmentation in pytorch/dataset.py for `Dataset`, `SiamDataset`, and `LstmDataset'.
+
+2) Specify hyperparams in pytorch/train.py (for image difference), pytorch/trainsiam.py (for siamese networks; `Trainer` class is in pytorch/models/utils.py file), and pytorch/trainlstm.py (for LSTM network)
+
+3) Run training `python train.py` (for UNet-diff and UNet-CH), or `python trainlstm.py` (from UNet-LSTM model), or `python trainsiam.py` (for UNet2D, UNet3D, and siamese models).
+
+### Model training and evaluation
+1) Train the models, generate predictions and evaluate the models with Dice and F1-scores:
+* UNet-diff or UNet-CH models (the difference is in specified `head` parameter):
+```
+data_path=../data/diff
+image_size=56
+neighbours=3
+epochs=200
+lr=1e-2
+image_size=56
+
+network=unet18
+loss=bce_dice
+optimizer=Adam
+
+head=True
+
+name="diff_"$network"_"$optimizer"_"$loss"_"$lr"_"$head
+
+python train.py --epochs $epochs \
+                --image_size $image_size \
+ 			          --lr $lr \
+                --network $network \
+                --optimizer $optimizer \
+                --loss $loss \
+                --name $name \
+                --dataset_path $data_path/ \
+                --train_df $data_path/train_df.csv \
+                --val_df $data_path/valid_df.csv \
+                --channels rgb b8 b8a b11 b12 ndvi ndmi \
+                --neighbours $neighbours \
+                --classification_head $head
+
+mkdir ../data/predictions/$name
+
+echo "Test"
+python prediction.py --classification_head $head --neighbours 3 --channels rgb b8 b8a b11 b12 ndvi ndmi --data_path $data_path --model_weights_path ../logs/$name/checkpoints/best.pth --test_df $data_path/test_df.csv --save_path ../data/predictions/$name --network $network --size $image_size
+
+echo "Train"
+python prediction.py --classification_head $head --neighbours 3 --channels rgb b8 b8a b11 b12 ndvi ndmi --data_path $data_path --model_weights_path ../logs/$name/checkpoints/best.pth --test_df $data_path/train_df.csv --save_path ../data/predictions/$name --network $network --size $image_size
+
+echo "Valid"
+python prediction.py --classification_head $head --neighbours 3 --channels rgb b8 b8a b11 b12 ndvi ndmi --data_path $data_path --model_weights_path ../logs/$name/checkpoints/best.pth --test_df $data_path/valid_df.csv --save_path ../data/predictions/$name --network $network --size $image_size
+
+cut=0.4
+echo "Test"
+python evaluation.py --datasets_path $data_path --prediction_path ../data/predictions/$name/predictions --test_df_path $data_path/test_df.csv --output_name 'test' --threshold $cut
+
+echo "Train"
+python evaluation.py --datasets_path $data_path --prediction_path ../data/predictions/$name/predictions --test_df_path $data_path/train_df.csv --output_name 'train'  --threshold $cut
+
+echo "Valid"
+python evaluation.py --datasets_path $data_path --prediction_path ../data/predictions/$name/predictions --test_df_path $data_path/valid_df.csv --output_name 'val'  --threshold $cut
 ```  
-2) Run evaluation
+* UNet2D, UNet2D, Siam-Conc, Siam-Diff:
 ```
-python evaluation.py \
- --datasets_path ../data/input \
- --prediction_path ../data/predictions \
- --test_df_path ../data/test_df.csv \
- --output_name …
-```
+data_path=../data/siam
 
-**To simplify the training, prediction and evaluation code running, we recommend to use the `*.sh` scripts in pytorch folder.**
+epochs=200
+lr=1e-2
+image_size=56
+optimizer=Adam
+
+loss=bce_dice
+model=unet
+
+name="siam"_$model"_"$optimizer"_"$loss"_"$lr
+
+#train
+python trainsiam.py --epochs $epochs \
+                --image_size $image_size \
+                --lr $lr \
+                --model $model \
+                --network unet18 \
+                --optimizer $optimizer \
+                --loss $loss \
+                --name $name \
+                --dataset_path $data_path/ \
+                --train_df $data_path/train_df.csv \
+                --val_df $data_path/onlymasksplit/valid_df.csv \
+                --test_df $data_path/test_df.csv \
+                --mode train
+
+#train predict
+python trainsiam.py --epochs $epochs \
+                --image_size $image_size \
+                --lr $lr \
+                --model $model \
+                --network unet18 \
+                --optimizer $optimizer \
+                --loss $loss \
+                --name $name \
+                --dataset_path $data_path/ \
+                --train_df $data_path/train_df.csv \
+                --val_df $data_path/valid_df.csv \
+                --test_df $data_path/test_df.csv \
+                --mode eval
+```
+* UNet-LSTM model (pay attention to the `--neighbours` parameter, it should be equal to the number of images in sequence, specified during preprocessing):
+```
+data_path=../data/lstm_diff
+
+epochs=200
+lr=1e-2
+image_size=56
+
+loss=tversky
+optimizer=Adam
+
+model=lstm_decoder
+
+name=$model"_"$optimizer"_"$loss"_"$lr"_tmp2"
+
+python trainlstm.py --epochs $epochs \
+                --image_size $image_size \
+                --lr $lr \
+                --model $model \
+                --optimizer $optimizer \
+                --loss $loss \
+                --name $name \
+                --dataset_path $data_path/ \
+                --train_df $data_path/train_df.csv \
+                --val_df $data_path/valid_df.csv \
+                --test_df $data_path/test_df.csv \
+                --allmasks False \
+                --neighbours 5
+
+python prediction_lstm.py --data_path $data_path --model_weights_path ../logs/$name/checkpoints/best.pth --test_df $data_path/train_df.csv --save_path ../data/predictions/$name/ --channels rgb b8 b8a b11 b12 ndvi ndmi --neighbours 5 --size $image_size
+python prediction_lstm.py --data_path $data_path --model_weights_path ../logs/$name/checkpoints/best.pth --test_df $data_path/valid_df.csv --save_path ../data/predictions/$name/ --channels rgb b8 b8a b11 b12 ndvi ndmi --neighbours 5 --size $image_size
+python prediction_lstm.py --data_path $data_path --model_weights_path ../logs/$name/checkpoints/best.pth --test_df $data_path/test_df.csv --save_path ../data/predictions/$name/ --channels rgb b8 b8a b11 b12 ndvi ndmi --neighbours 5 --size $image_size
+
+sample=train
+echo "$sample"
+python evaluation_lstm.py --datasets_path $data_path --prediction_path ../data/predictions/$name/predictions --test_df_path $data_path/$sample"_df.csv" --output_name $sample --threshold 0.4
+
+sample=valid
+echo "$sample"
+python evaluation_lstm.py --datasets_path $data_path --prediction_path ../data/predictions/$name/predictions --test_df_path $data_path/$sample"_df.csv" --output_name $sample --threshold 0.4
+
+sample=test
+echo "$sample"
+python evaluation_lstm.py --datasets_path $data_path --prediction_path ../data/predictions/$name/predictions --test_df_path $data_path/$sample"_df.csv" --output_name $sample --threshold 0.4
+```
