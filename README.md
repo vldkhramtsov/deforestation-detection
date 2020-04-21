@@ -17,15 +17,25 @@ password and sentinel_id parameters.
 ### Data downloading
 1) Create an account on https://peps.cnes.fr/rocket/#/home
 
-2) Specify params in config file input/peps_download_config.ini : most valuable parameters are `start_date,end_date,tile,latmin,latmax,lonmin,lonmax`
+2) Specify params in config file input/peps_download_config.ini : most valuable parameters are `start_date,end_date,tile`, which have to be set to exact values, and `latmin,latmax,lonmin,lonmax`, which could be specified approximately for a given tile.
 
-3) Download an image archive `python peps_download.py`
+3) Download an image archive with `python peps_download.py`
 
 4) Unzip the archive
 
 5) Merge bands with `python prepare_tif.py --data_folder … --save_path …` for a single image folder, or `./PREPARE_IMAGES.sh "data_folder" "save_path"` for the catalogue of images. 
 
 6) Run `prepare_clouds.py` (by defaults, this script is executing with `./PREPARE_IMAGES.sh "data_folder" "save_path"` script)
+
+Also, data could be downloaded manually from https://scihub.copernicus.eu/dhus/#/home:
+
+1) Create an account
+
+2) Specify the tileID in search query (e.g., 36UYA)
+
+3) Choose the wanted dates of imaging, and download with the arrow-shaped buttom (Download Product)
+
+Keep in mind, that scihub.copernicus.eu allows to download 3 images maximum at once.
 
 ### Data preparation
 1) Create folder where the following data are stored:
