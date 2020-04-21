@@ -1,4 +1,5 @@
 # Deforestation Detection: time-dependent models
+## Source code for `DEEP LEARNING FOR HIGH-FREQUENCY CHANGE DETECTION IN UKRAINIAN FOREST ECOSYSTEM WITH SENTINEL-2` (K.Isaienkov+, 2020) paper
 
 ## Project structure info
  * `input` - scripts for data download and preparation
@@ -15,7 +16,7 @@ password and sentinel_id parameters.
 ### Data downloading
 1) Create an account on https://peps.cnes.fr/rocket/#/home
 
-2) Specify params in config file input/peps_download_config.ini
+2) Specify params in config file input/peps_download_config.ini : most valuable parameters are `start_date,end_date,tile,latmin,latmax,lonmin,lonmax`
 
 3) Download an image archive `python peps_download.py`
 
