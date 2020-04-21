@@ -280,3 +280,12 @@ sample=test
 echo "$sample"
 python evaluation_lstm.py --datasets_path $data_path --prediction_path ../data/predictions/$name/predictions --test_df_path $data_path/$sample"_df.csv" --output_name $sample --threshold 0.4
 ```
+Implemented optimizers:
+* Adam
+* SGD
+* RAdam
+Implemented losses:
+* BCE+Dice
+* Lovasz
+* Focal
+* Tversky (alpha=beta=0.5 -> Dice losss)
