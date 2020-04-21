@@ -30,7 +30,7 @@ def to_tiff(img_file, output_type='Float32'):
 def merge(save_path, *images):
     os.system(f'gdal_merge.py -ps 40 40 -v -separate -o {save_path} {".tif ".join(images)+".tif"}')
 
-def detect_clouds(merged_tif_path, save_file, prob):
+def detect_clouds(merged_tif_path, save_file):
     print('================================')
     print('Cloud detection.')
     cloud_detector = S2PixelCloudDetector()
@@ -61,15 +61,10 @@ def parse_args():
         '--save_path', '-s', dest='save_path', default='data',
         help='Path to directory where results will be stored'
     )
-    parser.add_argument(
-        '--prob', '-p', dest='prob', default=0.5, type=float,
-        help='Probability threshold of the pixel being cloud.'
-    )
     return parser.parse_args()
 
 if __name__ == '__main__':    
     args = parse_args()
-    print('Pcut>%.2f'%args.prob)
     granule_folder = join(args.data_folder, 'GRANULE')
     tile_folder = os.listdir(granule_folder)[0]
     if(exists(join(granule_folder, tile_folder, 'IMG_DATA', 'R10m'))): 
@@ -77,14 +72,17 @@ if __name__ == '__main__':
         img_folder = join(granule_folder, tile_folder, 'QI_DATA')
         to_tiff(f'{os.path.join(img_folder,"MSK_CLDPRB_20m.jp2")}')
         clouds_tif_path = os.path.join(img_folder,"MSK_CLDPRB_20m.tif")
+
         cloud_probs = rasterio.open(clouds_tif_path).read()
         cloud_probs = reshape_as_image(cloud_probs)
+
         width = int(cloud_probs.shape[0] * 2)
         height = int(cloud_probs.shape[1] * 2)
+
         cloud_probs = cv2.resize(cloud_probs, (width, height), 
                              interpolation = cv2.INTER_CUBIC)
         cloud_probs = np.clip(cloud_probs, 0, 100)/100
-        #cloud_probs = (cloud_probs<args.prob).astype(np.uint8)*255
+
         print('save cloud.')
         save_file_clouds = join(args.save_path, f'{tile_folder}_clouds.tiff')
         imageio.imwrite(save_file_clouds, cloud_probs)
@@ -105,11 +103,11 @@ if __name__ == '__main__':
 
         print('\n all bands are being merged...\n')
 	    
-        save_file_merged = join(args.save_path, f'{tile_folder}_merged.tif')
+        save_file_merged = join(args.save_path, f'{tile_folder}_full_merged.tif')
         merge(save_file_merged, *band_names)
 	    
         save_file_clouds = join(args.save_path, f'{tile_folder}_clouds.tiff')
-        detect_clouds(save_file_merged, save_file_clouds, args.prob)
+        detect_clouds(save_file_merged, save_file_clouds)
         os.remove(save_file_merged)
 	    
         for item in os.listdir(img_folder):

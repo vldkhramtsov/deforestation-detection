@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     print('\nall bands are being merged...\n')
     print(band_names_scaled)
-    save_file_merged = join(args.save_path, f'{tile_folder}_merged.tif')
+    save_file_merged = join(args.save_path, f'{tile_folder}.tif')
     merge(save_file_merged, *band_names_scaled)
     
     print('\nsaving in png...\n')
