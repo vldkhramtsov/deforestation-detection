@@ -1,4 +1,4 @@
-# Deforestation Detection: time-dependent models
+# # Forest Change Detection: time-dependent models
 
 Source code for "DEEP LEARNING FOR HIGH-FREQUENCY CHANGE DETECTION IN UKRAINIAN FOREST ECOSYSTEM WITH SENTINEL-2 (K. Isaienkov+, 2020) paper
 
@@ -134,7 +134,7 @@ These scripts create the folder at the specified location (by default, `../data/
   * Siam-Conc (pytorch/models/siamese.py `SiamUnet_conc`)
   * UNet-LSTM (pytorch/models/u_lstm.py `Unet_LstmDecoder`)
   
-1) If it necessary specify augmentation in pytorch/dataset.py for `Dataset`, `SiamDataset`, and `LstmDataset'.
+1) If it necessary specify augmentation in pytorch/dataset.py for `Dataset`, `SiamDataset`, and `LstmDataset`.
 
 2) Specify hyperparams in pytorch/train.py (for image difference), pytorch/trainsiam.py (for siamese networks; `Trainer` class is in pytorch/models/utils.py file), and pytorch/trainlstm.py (for LSTM network)
 
