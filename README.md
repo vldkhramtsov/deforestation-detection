@@ -1,6 +1,6 @@
 # Deforestation Detection: time-dependent models
 
-### Source code for `DEEP LEARNING FOR HIGH-FREQUENCY CHANGE DETECTION IN UKRAINIAN FOREST ECOSYSTEM WITH SENTINEL-2` (K.Isaienkov+, 2020) paper
+Source code for "DEEP LEARNING FOR HIGH-FREQUENCY CHANGE DETECTION IN UKRAINIAN FOREST ECOSYSTEM WITH SENTINEL-2 (K. Isaienkov+, 2020) paper
 
 ## Project structure info
  * `input` - scripts for data download and preparation
@@ -8,24 +8,25 @@
 
 ## Credential setup
 
-This project needs several secure credentials, for peps.cnes.fr and sentinel-hub. 
-For correct setup, you need to create peps_download_config.ini 
-(it could be done by example peps_download_config.ini.example) and feel auth, 
-password and sentinel_id parameters.
+This project needs several secure credentials, for peps.cnes.fr and sentinel-hub.
+For correct setup, you need to create peps_download_config.ini (it could be done by example peps_download_config.ini.example) and feel auth, password and sentinel_id parameters.
 
 ## Model Development Guide
 ### Data downloading
+
 1) Create an account on https://peps.cnes.fr/rocket/#/home
 
 2) Specify params in config file input/peps_download_config.ini : most valuable parameters are `start_date,end_date,tile`, which have to be set to exact values, and `latmin,latmax,lonmin,lonmax`, which could be specified approximately for a given tile.
 
-3) Download an image archive with `python peps_download.py`
+3) Download an image archive with `python peps_download.py`.
 
-4) Unzip the archive
+4) Unzip the archive.
 
 5) Merge bands with `python prepare_tif.py --data_folder … --save_path …` for a single image folder, or `./PREPARE_IMAGES.sh "data_folder" "save_path"` for the catalogue of images. 
 
-6) Run `prepare_clouds.py` (by defaults, this script is executing with `./PREPARE_IMAGES.sh "data_folder" "save_path"` script)
+6) Run `prepare_clouds.py` (by defaults, this script is executing with `./PREPARE_IMAGES.sh "data_folder" "save_path"` script). This scripts works as for Level-C images (detection clouds with `sentinel-cloud-detector` API), as well as for Level-A images (coping and resampling available cloud map from image archive).
+
+The output of each script are `.tif` merged bands, `.png` image, each separately for each band, and `_clouds.tiff` images with clouds detections.
 
 Also, data could be downloaded manually from https://scihub.copernicus.eu/dhus/#/home:
 
@@ -35,20 +36,20 @@ Also, data could be downloaded manually from https://scihub.copernicus.eu/dhus/#
 
 3) Choose the wanted dates of imaging, and download with the arrow-shaped buttom (Download Product)
 
-Keep in mind, that scihub.copernicus.eu allows to download 3 images maximum at once.
+Keep in mind, that `scihub.copernicus.eu` allows to download 3 images maximum at once.
 
 ### Data preparation
 1) Create folder where the following data are stored:
-   * Source subfolder stores raw data that has to be preprocess
-   * Input subfolder stores data that is used in training and evaluation
-   * Polygons subfolder stores markup
-   * Subfolder containing cloud maps for each image tile
+   * Source subfolder stores raw data that has to be preprocess (`source`)
+   * Input subfolder stores data that is used in training and evaluation (`input`)
+   * Polygons subfolder stores markup (`polygons`)
+   * Subfolder containing cloud maps for each image tile (`auxiliary`)
 
-2) The source folder contains folders for each image that you downloaded. In that folder you have to store TIFF images of channels (in our case 'rgb', 'b8', 'b8a', 'b10', 'b11', 'b12', 'ndvi', 'ndmi' channels) named as f”{image_folder}\_{channel}.tif”.
+2) The source folder contains folders for each image that you downloaded. In that folder you have to store TIFF images of channels (in our case, 'rgb', 'b8', 'b8a', 'b10', 'b11', 'b12', 'ndvi', 'ndmi' channels) named as f”{image_folder}\_{channel}.tif”.
 
-3) If you have already merged bands to a single TIFF, you can just move it to input folder. But you have to create the folder (it can be empty) for this image in the source folder.
+3) If you have already merged bands to a single TIFF, you can just move it to `input` folder. But you have to create the folder (it may be empty) for these images in the source folder.
 
-4) The polygons folder contains markup that you apply to all images in input folder.
+4) The polygons folder contains markup that you apply to all images in input folder. Polygons could be as a single file, as well as different files (e.g., if you want to process each labeled series of tiles separately, to avoid collisions between different markups)
 
 #### Example of data folder structure:
 ```
@@ -63,13 +64,13 @@ data
 │   └── markup.geojson
 └── source
     ├── image0
-    │   ├── image0_b2.tif
     │   ├── image0_b8.tif
+    │   ├── image0_b8a.tif
     │   ├── ...
     │   └── image0_rgb.tif
     └── image1
-        ├── iamge1_b2.tif
-        ├── image1_b8.tif
+        ├── iamge1_b8.tif
+        ├── image1_b8a.tif
         ├── ...
         └── image1_rgb.tif
 ```
@@ -80,6 +81,7 @@ python preprocessing.py \
  --tiff_path ../data/source
  --save_path ../data/input
 ```
+The output of this scipt are subfolders in the `input` path, which contain divided tile images \ tile masks into the small pieces, with specified `--width` and `--height`.
 
 6) After preprocessing, run the script for dividing cloud maps into pieces (`python split_clouds.py`) with specified parameters.
 
@@ -103,11 +105,12 @@ input
 │   └── clouds
 └── image1.tif
 ```
-6) Run image sequence creation script. This scipts are different for different models:
+
+6) Run image sequence creation script. Run the script which is related to the model in use; these scipts are separated in the following way:
 ```
 python image_difference.py
 ```
-- to create input images for UNet-diff and UNet-CH models (parameter --classification_head `boolean` is corresponded for chooice of the model). Output of the script are stacking of three images (img1, img2, and their difference) and difference mask;
+- to create input images for UNet-diff and UNet-CH models (parameter --classification_head, which is `boolean` value, is corresponded for choice of the model). Output of the script are three images stacked together (img1, img2, and their difference) and difference mask;
 
 ```
 python image_siamese.py
@@ -117,9 +120,9 @@ python image_siamese.py
 ```
 python image_lstm.py
 ```
-- to create input images for UNEt-LSTM model. Output of the script are separated images from the sequence (len of which may be specified in the script) and mask for each image from sequence;
+- to create input images for UNet-LSTM model. Output of the script are separated images from the sequence (length of which may be specified in the script) and mask for each image from sequence;
 
-Each scripts creates the input files ready for learning, with spatial train/test/val datasets.
+These scripts create the folder at the specified location (by default, `../data/folder_name`), each folder consists of subfolders with sequence of images\masks. Each scripts creates the input files ready for learning, with spatial train/test/val datasets. The datasets with images\masks paths are in `.csv` files within the subfolders with sequence of images/masks.
 
 ### Models overview
 ## Implemented models:
@@ -284,6 +287,7 @@ Implemented optimizers:
 * Adam
 * SGD
 * RAdam
+
 Implemented losses:
 * BCE+Dice
 * Lovasz
