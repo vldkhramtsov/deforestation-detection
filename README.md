@@ -3,7 +3,7 @@
 Source code for "DEEP LEARNING FOR HIGH-FREQUENCY CHANGE DETECTION IN UKRAINIAN FOREST ECOSYSTEM WITH SENTINEL-2 (K. Isaienkov+, 2020) paper
 
 ## Project structure info
- * `input` - scripts for data download and preparation
+ * `data_prepare` - scripts for data download and preparation
  * `segmentation` - investigation about model approach, model training and model evaluation of clearcut detection
 
 ## Credential setup
@@ -24,13 +24,15 @@ For correct setup, you need to create peps_download_config.ini (it could be done
 
 5) Merge bands with `python prepare_tif.py --data_folder … --save_path …` for a single image folder, or `./PREPARE_IMAGES.sh "data_folder" "save_path"` for the catalogue of images. 
 
-6) Run `prepare_clouds.py` (by defaults, this script is executing with `./PREPARE_IMAGES.sh "data_folder" "save_path"` script). This scripts works as for Level-C images (detection clouds with `sentinel-cloud-detector` API), as well as for Level-A images (coping and resampling available cloud map from image archive).
+6) Run `prepare_clouds.py` (by defaults, this script is executing with `./PREPARE_IMAGES.sh "data_folder" "save_path"` script). This scripts works for Level-C images only (detection clouds with `sentinel-cloud-detector` API).
 
 7) Download global land cover map (for the Central Europe region): `wget https://s3-eu-west-1.amazonaws.com/vito.landcover.global/2015/E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_products_EPSG-4326.zip`
     * Unzip archive
     * Run script `python prepare_landcover.py --save_path ... --data_path .../E020N60_ProbaV_LC100_epoch2015_global_v2.0.2_discrete-classification_EPSG-4326.tif`
 
-The output of each script are `.tif` merged bands, `.png` image, each separately for each band, and `_clouds.tiff` images with clouds detections.
+The output of scripts are `.tif` merged bands, `.png` image, each separately for each band, `_clouds.tiff` images with clouds detections, and `land_cover.tiff` file with land cover classification.
+
+If you want to use cloud detector for Level-A images, or prepare more bands, you can use the scripts from the `data_prepare` directory in `time-dependent` folder.
 
 Also, data could be downloaded manually from https://scihub.copernicus.eu/dhus/#/home:
 
