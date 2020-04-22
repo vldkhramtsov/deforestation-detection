@@ -3,7 +3,7 @@
 Source code for "DEEP LEARNING FOR HIGH-FREQUENCY CHANGE DETECTION IN UKRAINIAN FOREST ECOSYSTEM WITH SENTINEL-2 (K. Isaienkov+, 2020) paper
 
 ## Project structure info
- * `input` - scripts for data download and preparation
+ * `data_prepare` - scripts for data download and preparation
  * `segmentation` - investigation about model approach, model training and model evaluation of clearcut detection
 
 ## Credential setup
@@ -12,7 +12,7 @@ This project needs several secure credentials, for peps.cnes.fr and sentinel-hub
 For correct setup, you need to create peps_download_config.ini (it could be done by example peps_download_config.ini.example) and feel auth, password and sentinel_id parameters.
 
 ## Model Development Guide
-### Data downloading
+### Data downloading (`data_prepare` folder)
 
 1) Create an account on https://peps.cnes.fr/rocket/#/home
 
@@ -39,7 +39,7 @@ Also, data could be downloaded manually from https://scihub.copernicus.eu/dhus/#
 Keep in mind, that `scihub.copernicus.eu` allows to download 3 images maximum at once.
 
 ### Data preparation
-1) Create folder where the following data are stored:
+1) Create folder (e.g., `data`, on the same level with `data_prepare` and `segmentation`) where the following datasets are stored:
    * Source subfolder stores raw data that has to be preprocess (`source`)
    * Input subfolder stores data that is used in training and evaluation (`input`)
    * Polygons subfolder stores markup (`polygons`)
