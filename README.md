@@ -1,4 +1,4 @@
-# # Forest Change Detection: time-dependent models
+# Forest Change Detection: time-dependent models
 
 Source code for "DEEP LEARNING FOR HIGH-FREQUENCY CHANGE DETECTION IN UKRAINIAN FOREST ECOSYSTEM WITH SENTINEL-2 (K. Isaienkov+, 2020) paper
 
